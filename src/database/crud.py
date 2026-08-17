@@ -180,7 +180,7 @@ def insert_document(
     has_hash_column = _check_content_hash_column()
 
     def insert_func(sb_client):
-        target_dim = 1536
+        target_dim = 1024
         if vector and len(vector) < target_dim:
             padded_vector = vector + [0.0] * (target_dim - len(vector))
         elif vector and len(vector) > target_dim:

@@ -86,14 +86,14 @@ class EmbeddingFactory:
 
 class SimpleEmbedding(Embeddings):
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        return [[0.0] * 1536 for _ in texts]
+        return [[0.0] * 1024 for _ in texts]
 
     def embed_query(self, text: str) -> List[float]:
-        return [0.0] * 1536
+        return [0.0] * 1024
 
     @property
     def dimensions(self) -> int:
-        return 1536
+        return 1024
 
 
 class DeepseekEmbedding(Embeddings):

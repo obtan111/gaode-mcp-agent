@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     content TEXT NOT NULL,
     content_hash VARCHAR(32),
-    vector vector(1536) NOT NULL,
+    vector vector(1024) NOT NULL,
     filename VARCHAR(255),
     page_number INTEGER,
     category VARCHAR(100),
