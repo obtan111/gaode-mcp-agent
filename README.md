@@ -20,6 +20,7 @@
 ## 目录
 
 - [项目简介](#项目简介)
+- [2026-08-27 更新记录](#2026-08-27-更新记录)
 - [技术架构](#技术架构)
 - [项目结构](#项目结构)
 - [环境配置](#环境配置)
@@ -43,6 +44,123 @@
 3. **外部工具调用**：集成高德地图、时间查询等外部服务
 4. **智能行程规划**：结合多工具进行旅游行程规划
 5. **会话管理**：支持多会话、历史记录持久化
+
+---
+
+## 2026-08-27 更新记录
+
+本次更新将项目从"Gradio 单体应用"升级为**前后端分离的 Web 架构**：业务层（src/）保持不动，新增 FastAPI 后端与 Vue 3 前端，并修复了两个环境问题。提交记录：`924c5d8`（后端）→ `7d61b47`（流式修复）→ `f72c311`（降级修复）→ `383adaa`（前端）。
+
+### 本次新增内容
+
+1. **FastAPI 后端**（`backend/` 目录）
+   - SSE 流式聊天接口 `POST /api/chat/stream`（事件流：start/status/token/tts/done/error）
+   - 普通 JSON 聊天接口 `POST /api/chat`（非流式兜底）
+   - 会话管理 `GET/POST/PATCH/DELETE /api/sessions`（增删改查）
+   - 知识库接口 `GET/POST/DELETE /api/kb/...`（文档上传向量化、内容查看、删除、检索调试）
+   - 接口文档自动生成：启动后访问 `http://127.0.0.1:8000/docs`
+2. **Vue 3 前端**（`frontend/` 目录）
+   - 类 ChatGPT 界面：左侧会话列表 + 右侧流式聊天窗
+   - `fetch + ReadableStream` 手写 SSE 解析器（POST 场景浏览器 EventSource 不可用，见 `src/api/chat.js`）
+   - markdown-it 渲染助手回答，流式过程中边生成边格式化
+3. **运行脚本** `run_backend.bat`：固定 Python 3.11 解释器、自动安装 Web 依赖、支持 `check` 模式自检
+4. **冒烟测试** `tests/test_backend_api.py`：基于 OpenAPI 契约断言路由注册，无需 API Key 即可运行
+5. **架构改进**
+   - 会话状态无内存化：历史消息每次从数据库加载，服务重启不丢、可水平扩展
+   - 移除 Gradio 版的 120 秒线程 join 超时 hack，超时交由部署层网关处理
+   - 流式模式可配置（`CHAT_STREAM_MODE`），失败自动降级重跑
+
+### 新增架构
+
+```
+┌────────────────┐   HTTP/SSE   ┌─────────────────────┐   直接复用    ┌──────────────────┐
+│   Vue 3 前端    │ ───────────▶ │     FastAPI 后端     │ ───────────▶ │    src/ 业务层    │
+│ (Vite :5173)   │  开发代理    │   (uvicorn :8000)   │               │ AgentGraph / RAG │
+│ 聊天/会话界面   │  /api → 8000 │ routers/schemas/    │               │ / MCP / CRUD     │
+└────────────────┘              │ services            │               └──────────────────┘
+                                └─────────────────────┘
+```
+
+前端 → 后端的通信：开发期由 Vite 代理 `/api` 请求到 `127.0.0.1:8000`（绕开浏览器同源策略），生产期由 Nginx 等网关转发（见"扩展开发-部署"）。
+
+### 快速开始（新版，推荐）
+
+**1. 启动后端**（双击 `run_backend.bat`，或手动执行）：
+
+```bash
+python -m uvicorn backend.main:app --reload --port 8000
+```
+
+- 接口文档：http://127.0.0.1:8000/docs
+- 健康检查：http://127.0.0.1:8000/api/health
+
+**2. 启动前端**（新开一个终端）：
+
+```bash
+cd frontend
+npm install        # 首次运行需要
+npm run dev
+```
+
+- 访问 http://localhost:5173
+
+**3. 验证流式接口**（后端启动后可直接用 curl 观察效果）：
+
+```bash
+curl -N -X POST http://127.0.0.1:8000/api/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "简单解释一下什么是RAG"}'
+```
+
+### 新版 API 一览
+
+| 方法 | 路径 | 说明 |
+| ---- | ---- | ---- |
+| POST | `/api/chat` | 一次性完整回答（JSON） |
+| POST | `/api/chat/stream` | SSE 流式回答（推荐） |
+| GET | `/api/sessions?page=&page_size=` | 会话列表 |
+| POST | `/api/sessions` | 新建会话 |
+| GET | `/api/sessions/{id}` | 会话详情（含消息历史） |
+| PATCH | `/api/sessions/{id}` | 重命名会话 |
+| DELETE | `/api/sessions/{id}` | 删除会话 |
+| GET | `/api/kb` | 知识库名称列表 |
+| POST | `/api/kb/{kb_name}/documents` | 上传文档并向量化（multipart） |
+| GET | `/api/kb/{kb_name}/documents` | 查看知识库分片 |
+| DELETE | `/api/kb/{kb_name}` | 删除知识库 |
+| POST | `/api/kb/retrieve` | 检索调试（混合检索管道直连） |
+| GET | `/api/health` | 健康检查 |
+
+**SSE 事件协议**（`/api/chat/stream` 返回，事件定义见 `backend/services/agent_runner.py`）：
+
+| 事件 | 数据字段 | 说明 |
+| ---- | ---- | ---- |
+| `start` | `session_id` | 会话已就绪（空 session_id 时自动新建） |
+| `status` | `node` | 工作流节点切换：`llm_inference` / `tool_execution` / `answer_generation` |
+| `token` | `delta` | 回答增量文本（前端逐个追加即可） |
+| `tts` | `audio` | TTS 音频 data URI（请求体 `tts: true` 时返回） |
+| `done` | `session_id, answer, elapsed_ms` | 生成完成，以完整回答收尾 |
+| `error` | `message` | 出错信息 |
+
+**流式模式说明**（环境变量 `CHAT_STREAM_MODE`，配置在 `.env`）：
+
+- `updates`（默认）：推送节点状态事件，回答生成完整体后切片推送。与 Gradio 版行为一致，任何依赖版本组合都稳定；
+- `multi`：额外启用 messages 模式尝试真实 token 流。**当前依赖版本（langgraph 1.2.9 + langchain-core 1.4.9）下该模式存在上游兼容缺陷**（`AIMessage.generation_info` 崩溃，升级到 langgraph 1.2.11 + langchain-core 1.6.0 验证仍存在），开启后每次请求会先失败并自动降级为 updates 模式重跑（多消耗一次调用）。等上游修复后可改回此模式。
+
+### 本次修复的问题
+
+| 问题 | 原因 | 处理 |
+| ---- | ---- | ---- |
+| `ImportError: cannot import name 'TypedDict' from 'typing'` | PowerShell 默认的 miniconda base 是 Python 3.7（TypedDict 需要 3.8+） | `run_backend.bat` 固定使用 Python 3.11（`C:\Users\xou\AppData\Local\Programs\Python\Python311`），或 `conda activate assistant` |
+| `run_backend.bat` 乱码报错 `'o' 不是内部或外部命令` | 批处理文件含中文且编码与系统 GBK 代码页冲突 | 脚本改为纯 ASCII 内容 + CRLF 行尾 |
+| 流式回答是道歉语（`'AIMessage' object has no attribute 'generation_info'`） | langgraph 多模式流的事件处理器与 langchain-core 1.4.x 不兼容，异常被节点 try/except 吞掉伪装成回答 | 默认走 updates 模式；`multi` 模式检测到失败自动降级重跑 |
+| 降级重跑仍失败 | 递归调用未强制 updates 模式，重复触发同一缺陷 | 修复 `_force_updates` 参数，降级路径显式切换模式 |
+
+### 联调验证记录
+
+- Vite 页面服务、`/api` 代理转发、健康检查、会话列表数据库读取均实测通过；
+- 真实对话链路（`updates` 模式）：`start → status → token×N → done`，回答完整正确；
+- `multi` 模式降级路径：首次尝试失败 → 日志记录一次降级 → 重跑输出正确回答；
+- 环境已回滚至 langgraph 1.2.9 + langchain-core 1.4.9。
 
 ---
 
@@ -106,7 +224,42 @@
 
 ```
 私人助手项目/
-├── app.py                    # Gradio 主应用入口
+├── app.py                    # Gradio 主应用入口（遗留版界面）
+├── backend/                  # FastAPI Web 后端（2026-08-27 新增）
+│   ├── __init__.py
+│   ├── main.py               # FastAPI 入口（CORS、lifespan 预热、路由注册）
+│   ├── core/
+│   │   ├── __init__.py
+│   │   └── deps.py           # 重型组件懒加载单例（import 零副作用）
+│   ├── schemas/              # pydantic 请求/响应模型
+│   │   ├── __init__.py
+│   │   ├── chat.py
+│   │   ├── kb.py
+│   │   └── session.py
+│   ├── routers/              # API 路由
+│   │   ├── __init__.py
+│   │   ├── chat.py           # /api/chat 与 /api/chat/stream（SSE）
+│   │   ├── sessions.py       # 会话 CRUD
+│   │   └── kb.py             # 知识库上传/查看/删除/检索
+│   └── services/
+│       ├── __init__.py
+│       └── agent_runner.py   # LangGraph 事件流桥接 + 会话持久化 + 记忆收尾
+├── frontend/                 # Vue3 前端（2026-08-27 新增）
+│   ├── index.html            # HTML 入口
+│   ├── package.json          # 依赖清单（vue / vite / markdown-it）
+│   ├── vite.config.js        # Vite 配置 + 开发代理 /api -> 127.0.0.1:8000
+│   └── src/
+│       ├── main.js           # 应用入口（createApp().mount）
+│       ├── style.css         # 全局样式与配色变量
+│       ├── App.vue           # 根组件：状态管理 + 组件编排
+│       ├── api/
+│       │   ├── chat.js       # SSE 流式解析器（fetch + ReadableStream）
+│       │   └── sessions.js   # 会话 REST API 封装
+│       └── components/
+│           ├── Sidebar.vue   # 会话列表侧栏
+│           ├── ChatWindow.vue # 消息列表 + 输入框 + 自动滚动
+│           └── MessageItem.vue # 单条消息（markdown 渲染）
+├── run_backend.bat           # 后端启动脚本（固定 Python 3.11）
 ├── .env                      # 环境变量配置
 ├── requirements.txt          # Python 依赖列表
 ├── scripts/                  # SQL 初始化脚本
@@ -238,6 +391,9 @@ psql -h your-project.supabase.co -U postgres -d postgres -f scripts/init_tables.
 ---
 
 ## 快速开始
+
+> **新版（推荐）**：FastAPI 后端 + Vue 前端，详细步骤见 [2026-08-27 更新记录](#2026-08-27-更新记录)。
+> 本节以下内容为遗留 Gradio 单机版说明。
 
 ### 启动应用
 
@@ -393,6 +549,68 @@ TXT_CHUNK_SIZE=800         # TXT 切块大小
 ---
 
 ## API 接口
+
+> 以下为**新版 FastAPI 接口**（后端端口 8000，详细文档见 http://127.0.0.1:8000/docs）。
+> 本小节尾部"遗留接口"为 Gradio 版自带接口，仅作参考。
+
+### 新版聊天接口
+
+#### POST /api/chat
+
+一次性返回完整回答。
+
+**请求体**：
+
+```json
+{
+  "message": "用户消息",
+  "session_id": "会话ID（可选，为空自动新建）",
+  "model_type": "deepseek",
+  "images": [],
+  "tts": false
+}
+```
+
+**响应**：
+
+```json
+{
+  "session_id": "98a2613a-3274-4c6a-bb07-2aec12712efa",
+  "answer": "助手回答",
+  "elapsed_ms": 9063,
+  "audio": null
+}
+```
+
+#### POST /api/chat/stream（推荐）
+
+SSE 流式回答，事件协议见 [2026-08-27 更新记录](#2026-08-27-更新记录) 的"SSE 事件协议"表。curl 验证：
+
+```bash
+curl -N -X POST http://127.0.0.1:8000/api/chat/stream \
+  -H "Content-Type: application/json" \
+  -d '{"message": "简单解释一下什么是RAG"}'
+```
+
+### 新版知识库接口
+
+| 方法 | 路径 | 说明 |
+| ---- | ---- | ---- |
+| POST | `/api/kb/{kb_name}/documents` | 上传文档（multipart，支持 txt/md/pdf/json/csv，单文件 ≤50MB） |
+| GET | `/api/kb/{kb_name}/documents` | 查看知识库分片列表（剥离 vector 字段） |
+| DELETE | `/api/kb/{kb_name}` | 删除整个知识库 |
+| POST | `/api/kb/retrieve` | 检索调试（不经 LLM，直连混合检索管道） |
+
+**上传示例**：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/kb/长沙攻略/documents \
+  -F "files=@./长沙旅游.txt"
+```
+
+### 遗留接口（Gradio 版）
+
+> 以下接口属于 Gradio 单体版自带接口（端口 7860），新版架构不再使用。
 
 ### 聊天接口
 
@@ -580,6 +798,7 @@ pytest tests/ --cov=src --cov-report=html
 
 | 测试文件         | 覆盖内容         |
 | ---------------- | ---------------- |
+| test_backend_api.py | 后端路由契约与请求校验（OpenAPI 断言，无需 API Key） |
 | test_config.py   | 配置加载和验证   |
 | test_database.py | 数据库连接和心跳 |
 | test_crud.py     | CRUD 操作        |
