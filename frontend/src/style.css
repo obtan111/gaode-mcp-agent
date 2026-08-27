@@ -1,0 +1,30 @@
+/* 全局基础样式：重置默认边距，设定配色变量 */
+:root {
+  --bg-main: #f5f6f8;
+  --bg-side: #ffffff;
+  --bg-user-bubble: #3b7cff;
+  --bg-ai-bubble: #ffffff;
+  --text-main: #1f2329;
+  --text-sub: #8a9099;
+  --border: #e5e7eb;
+  --accent: #3b7cff;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  font-family: 'PingFang SC', 'Microsoft YaHei', -apple-system, sans-serif;
+  color: var(--text-main);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
