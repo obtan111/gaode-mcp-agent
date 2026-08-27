@@ -175,6 +175,7 @@ def iter_chat_events(
     images: Optional[List[str]] = None,
     want_tts: bool = False,
     _allow_fallback: bool = True,
+    _force_updates: bool = False,
 ) -> Generator[Event, None, None]:
     """运行一次完整问答并逐步产出 (event, data) 事件流。
 
@@ -197,7 +198,10 @@ def iter_chat_events(
     started = time.time()
     yield "start", {"session_id": session_id}
 
-    use_multi = os.getenv("CHAT_STREAM_MODE", "updates").strip().lower() == "multi"
+    use_multi = (
+        not _force_updates
+        and os.getenv("CHAT_STREAM_MODE", "updates").strip().lower() == "multi"
+    )
 
     history_before = _load_history(session_id)
     state = init_state(
@@ -252,7 +256,7 @@ def iter_chat_events(
 
         # messages 模式的失败有两种表现：异常直接抛出，或被节点 try/except
         # 吞掉后以道歉语 final_answer 收场。两种都通过"没产生过真实 token"
-        # 且开启降级来识别，重跑一次纯 updates 模式（代价是失败时多一次调用）。
+        # 且开启降级来识别，用强制 updates 模式重跑一次（代价是失败时多一次调用）。
         poisoned = streamed_chars == 0 and final_answer.startswith(APOLOGY_PREFIX)
         if use_multi and _allow_fallback and (stream_error is not None or poisoned):
             logger.warning(
@@ -260,7 +264,13 @@ def iter_chat_events(
                 "自动降级为 updates 模式重跑"
             )
             yield from iter_chat_events(
-                message, session_id, model_type, images, want_tts, _allow_fallback=False
+                message,
+                session_id,
+                model_type,
+                images,
+                want_tts,
+                _allow_fallback=False,
+                _force_updates=True,
             )
             return
         if stream_error is not None:
