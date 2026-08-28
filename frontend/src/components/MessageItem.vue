@@ -7,6 +7,7 @@ import { synthesizeSpeech } from '../api/voice.js'
 
 const props = defineProps({
   msg: { type: Object, required: true }, // {role, content}
+  streaming: { type: Boolean, default: false }, // 本条是否正在流式生成
 })
 
 const md = new MarkdownIt({ breaks: true })
@@ -51,8 +52,15 @@ async function toggleTts() {
   <div class="row" :class="props.msg.role">
     <div class="bubble-wrap">
       <div class="bubble">
-        <div v-if="props.msg.role === 'assistant'" class="md" v-html="renderedHtml" />
+        <!-- 流式生成中按纯文本渲染：未闭合的代码围栏/表格会让
+             markdown 半成品形态残缺，纯文本保证动画过程始终完整可读，
+             生成完成后一次性切换为 markdown 排版 -->
+        <div v-if="props.msg.role === 'assistant' && !props.streaming" class="md" v-html="renderedHtml" />
         <div v-else class="plain">{{ props.msg.content }}</div>
+        <!-- 用户消息附带的上传图片缩略图 -->
+        <div v-if="props.msg.role === 'user' && props.msg.images && props.msg.images.length" class="msg-imgs">
+          <img v-for="(img, i) in props.msg.images" :key="i" :src="img" alt="上传图片" />
+        </div>
       </div>
 
       <!-- 助手消息下方悬浮工具条 -->
@@ -102,6 +110,21 @@ async function toggleTts() {
   background: var(--bg-user-bubble);
   color: #fff;
   white-space: pre-wrap;
+}
+
+.msg-imgs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.msg-imgs img {
+  max-width: 180px;
+  max-height: 180px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  display: block;
 }
 
 .assistant .bubble {

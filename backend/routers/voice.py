@@ -23,7 +23,9 @@ MAX_AUDIO_BYTES = 20 * 1024 * 1024
 
 
 class TTSRequest(BaseModel):
-    text: str = Field(..., min_length=1, max_length=1000)
+    # 智谱 TTS 硬限制 1024 字符（错误码 1214），放宽接收上限并在
+    # 服务端截断，避免模型回答稍长就整段失败
+    text: str = Field(..., min_length=1, max_length=8000)
 
 
 @router.post("/tts")
@@ -31,13 +33,19 @@ def text_to_speech(req: TTSRequest):
     """把文本合成为 mp3，返回 base64 data URI。"""
     from backend.core.deps import get_text_to_speech
 
+    # 智谱 TTS 输入硬上限 1024 字符（错误码 1214），超长部分截断
+    text = req.text[:1024]
     try:
-        audio_bytes = get_text_to_speech().synthesize(req.text, output_format="mp3")
+        audio_bytes = get_text_to_speech().synthesize(text, output_format="mp3")
     except Exception as exc:
         logger.error(f"TTS failed: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"语音合成失败：{exc}")
     if not audio_bytes or len(audio_bytes) == 0:
-        raise HTTPException(status_code=500, detail="语音合成结果为空")
+        logger.error("TTS returned empty audio (provider may have rejected the request)")
+        raise HTTPException(
+            status_code=500,
+            detail="语音合成结果为空：请检查智谱 API 余额与语音服务状态",
+        )
     return {
         "audio": "data:audio/mp3;base64," + base64.b64encode(audio_bytes).decode(),
     }

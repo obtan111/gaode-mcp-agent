@@ -298,8 +298,6 @@ class TextToSpeech:
             logger.warning(f"Skipping TTS synthesis: text too short ({len(text or '')} characters)")
             return b""
 
-        url = "https://open.bigmodel.cn/api/paas/v4/audio/speech"
-
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
@@ -307,7 +305,7 @@ class TextToSpeech:
 
         params = {
             "model": "glm-tts",
-            "input": text[:2000],
+            "input": text[:1024],  # 智谱 TTS 硬上限 1024 字符（错误码 1214）
             "voice_id": "glm-tts-voice-qingci",
             "speed": 1.0,
             "volume": 1.0,
@@ -318,7 +316,13 @@ class TextToSpeech:
         logger.info(f"Starting zhipu TTS synthesis, text length={len(text)}")
 
         try:
-            response = requests.post(url, headers=headers, json=params, timeout=30)
+            # 长文本（上限 1024 字符）合成耗时可能超过 30s，放宽超时
+            response = requests.post(
+                "https://open.bigmodel.cn/api/paas/v4/audio/speech",
+                headers=headers,
+                json=params,
+                timeout=120,
+            )
             if response.status_code == 404:
                 logger.warning("Zhipu TTS API returned 404, service may be unavailable")
                 return b""

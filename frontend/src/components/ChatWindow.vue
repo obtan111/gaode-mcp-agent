@@ -18,6 +18,7 @@ const input = ref('')
 const images = ref([]) // base64 data URI 列表（待发送）
 const listEl = ref(null)
 const fileInput = ref(null) // 隐藏的图片选择 input
+const textareaEl = ref(null) // 输入框引用，用于发送后重置高度
 
 // ---------- 录音状态 ----------
 const recording = ref(false)
@@ -49,6 +50,22 @@ function submit() {
   emit('send', { text, images: [...images.value] })
   input.value = ''
   images.value = []
+  if (textareaEl.value) textareaEl.value.style.height = 'auto'
+}
+
+/** 输入内容变化时按内容自动增高（上限 140px） */
+function autoResize(event) {
+  const el = event.target
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 140) + 'px'
+}
+
+/** 回车发送（Shift+Enter 换行） */
+function onKeydown(event) {
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault() // 阻止 textarea 换行
+    submit()
+  }
 }
 
 // ---------- 图片上传 ----------
@@ -130,7 +147,12 @@ async function onRecordStop() {
         <p>基于 LangGraph + RAG + MCP 的个人智能助手</p>
       </div>
 
-      <MessageItem v-for="(msg, i) in messages" :key="i" :msg="msg" />
+      <MessageItem
+        v-for="(msg, i) in messages"
+        :key="i"
+        :msg="msg"
+        :streaming="props.streaming && i === messages.length - 1 && msg.role === 'assistant'"
+      />
 
       <div v-if="isGenerating" class="cursor">▍</div>
     </div>
@@ -159,12 +181,17 @@ async function onRecordStop() {
         {{ asrBusy ? '⏳' : recording ? '⏹' : '🎤' }}
       </button>
 
-      <input
+      <!-- 自适应高度输入框：长消息不再被横向裁掉；Enter 发送、Shift+Enter 换行 -->
+      <textarea
+        ref="textareaEl"
         v-model="input"
+        class="input-area"
+        rows="1"
         :disabled="props.streaming"
-        placeholder="输入消息，回车发送..."
-        @keydown.enter="submit"
-      />
+        placeholder="输入消息，回车发送（Shift+Enter 换行）..."
+        @input="autoResize"
+        @keydown="onKeydown"
+      ></textarea>
       <button :disabled="props.streaming || (!input.trim() && images.length === 0)" @click="submit">
         {{ props.streaming ? '生成中' : '发送' }}
       </button>
@@ -280,16 +307,25 @@ async function onRecordStop() {
   }
 }
 
-.input-bar input {
+.input-bar input:focus {
+  border-color: var(--accent);
+}
+
+.input-area {
   flex: 1;
   padding: 12px 16px;
   border: 1px solid var(--border);
   border-radius: 10px;
   font-size: 14px;
   outline: none;
+  resize: none; /* 禁止手动拖拽，靠内容自动增高 */
+  font-family: inherit;
+  line-height: 1.5;
+  max-height: 140px; /* 超过后内部滚动，防止输入框无限长 */
+  overflow-y: auto;
 }
 
-.input-bar input:focus {
+.input-area:focus {
   border-color: var(--accent);
 }
 

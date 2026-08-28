@@ -90,13 +90,10 @@ async function onSend({ text, images }) {
   if (streaming.value) return
   streaming.value = true
 
-  // 显示的消息：图片以 Markdown 语法附在消息末尾（后端也会拼接图片提示）
-  const displayContent = images.length
-    ? `${text}\n\n[图片×${images.length}]`
-    : text
+  // 显示的消息：图片存入消息对象，由 MessageItem 渲染缩略图
   messages.value = [
     ...messages.value,
-    { role: 'user', content: displayContent },
+    { role: 'user', content: text, images: [...images] },
     { role: 'assistant', content: '' }, // 助手消息占位，token 到达时填充
   ]
 
