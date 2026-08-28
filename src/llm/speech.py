@@ -1,5 +1,6 @@
 import os
 import json
+import struct
 import requests
 from typing import Optional, Union, Dict, Any
 
@@ -147,6 +148,41 @@ class SpeechRecognition:
         logger.info(f"Speech recognition completed, text length={len(text)}")
 
         return text
+
+
+def _ensure_playable_audio(audio_data: bytes) -> bytes:
+    """把服务端音频保证为浏览器可播放的容器格式。
+
+    实测发现智谱 GLM-TTS 默认返回**无容器头的裸 PCM**（24kHz / 16bit /
+    单声道，小端序）——浏览器 Audio 元素无法直接播放（报
+    "no supported source"）。检测到无常见容器魔数时，按上述参数包装成
+    标准 WAV。
+    """
+    if audio_data[:4] in (b"RIFF", b"ID3\x00", b"OggS", b"fLaC") or audio_data[:2] == b"\xff\xfb":
+        # 已是常见容器（wav/mp3/ogg/flac），原样返回
+        return audio_data
+    if len(audio_data) % 2 != 0:
+        logger.warning("Suspicious PCM chunk size (odd bytes), returning as-is")
+        return audio_data
+    # 44 字节 RIFF/WAVE 头：PCM、单声道、16bit、24kHz
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF",
+        36 + len(audio_data),
+        b"WAVE",
+        b"fmt ",
+        16,          # fmt 块长度
+        1,           # PCM
+        1,           # 单声道
+        24000,       # 采样率
+        48000,       # 字节率 = 采样率 × 2
+        2,           # 块对齐
+        16,          # 位深
+        b"data",
+        len(audio_data),
+    )
+    logger.info("Wrapped raw PCM into WAV (24kHz/16bit/mono)")
+    return header + audio_data
 
 
 class TextToSpeech:
@@ -333,7 +369,7 @@ class TextToSpeech:
             response.raise_for_status()
             audio_data = response.content
             logger.info(f"Zhipu TTS completed, audio length={len(audio_data)}")
-            return audio_data
+            return _ensure_playable_audio(audio_data)
         except requests.RequestException as e:
             logger.error(f"Zhipu TTS API request failed: {str(e)}")
             return b""

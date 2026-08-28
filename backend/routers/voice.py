@@ -46,8 +46,13 @@ def text_to_speech(req: TTSRequest):
             status_code=500,
             detail="语音合成结果为空：请检查智谱 API 余额与语音服务状态",
         )
+    # 按实际字节内容标注 MIME（智谱默认返回裸 PCM，已被 speech.py 包装为 WAV）
+    if audio_bytes[:3] == b"ID3" or audio_bytes[:2] == b"\xff\xfb":
+        mime = "audio/mpeg"
+    else:
+        mime = "audio/wav"
     return {
-        "audio": "data:audio/mp3;base64," + base64.b64encode(audio_bytes).decode(),
+        "audio": f"data:{mime};base64," + base64.b64encode(audio_bytes).decode(),
     }
 
 
