@@ -55,6 +55,9 @@
 > 3. 📎 图片上传（base64 data URI 随消息发送，支持视觉模型 deepseek-vl / zhipu-4v，配合侧栏新增的模型选择下拉框）；
 > 4. 侧栏顶部「对话 / 知识库」视图切换：知识库面板支持上传向量化、分片查看、删除知识库、检索调试（对应后端 `/api/kb` 全部接口）；
 > 5. 📤 导出当前会话为 Markdown（纯前端 Blob 下载）。
+>
+> **2026-08-28 修复（提交 b8998a9）**：知识库上传报 `expected 1536 dimensions, not 1024`——
+> 线上 `documents.vector` 列曾表被重建回退为 1536 维，与智谱 embedding-2 的 1024 维不符；同时连带发现密集检索因 pgvector 列经 PostgREST 返回字符串而被静默跳过（此前 RAG 实际只靠 BM25）。修复内容：`crud.py` 兼容字符串向量解析、`scripts/migrate_vector_to_1024.sql` 幂等迁移（需在 Supabase SQL Editor 执行）、`scripts/reembed_documents.py` 存量重嵌入。修复后实测：30 条分片全部重嵌入成功，语义查询密集检索命中而 BM25 为 0，向量检索首次真正生效。
 
 本次更新将项目从"Gradio 单体应用"升级为**前后端分离的 Web 架构**：业务层（src/）保持不动，新增 FastAPI 后端与 Vue 3 前端，并修复了两个环境问题。提交记录：`924c5d8`（后端）→ `7d61b47`（流式修复）→ `f72c311`（降级修复）→ `383adaa`（前端）。
 
