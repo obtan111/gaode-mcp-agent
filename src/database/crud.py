@@ -358,12 +358,25 @@ def delete_documents_by_filename(filename: str) -> int:
 
 
 @retry(max_retries=3, backoff_factor=2.0, initial_delay=1.0, timeout=30.0)
-def get_documents_by_kb(kb_name: Optional[str]) -> List[Dict[str, Any]]:
+def get_documents_by_kb(
+    kb_name: Optional[str],
+    columns: str = "*",
+) -> List[Dict[str, Any]]:
+    """按知识库查询文档分片。
+
+    参数：
+    - kb_name: 知识库名称，为空则返回全部
+    - columns: 查询列。列表/详情场景应传不含 vector 的显式列名——
+      vector 列每行约 20KB 文本，经海外网络整列拉取是查看接口变慢的主因
+
+    返回：
+    - 文档字典列表
+    """
     client = get_supabase_client()
-    logger.info(f"Getting documents by kb_name: {kb_name}")
+    logger.info(f"Getting documents by kb_name: {kb_name}, columns: {columns[:60]}")
 
     def get_func(sb_client):
-        query = sb_client.table("documents").select("*")
+        query = sb_client.table("documents").select(columns)
         if kb_name and kb_name.strip():
             query = query.eq("kb_name", kb_name)
         result = query.execute()
@@ -375,6 +388,33 @@ def get_documents_by_kb(kb_name: Optional[str]) -> List[Dict[str, Any]]:
         return results
     except Exception as e:
         logger.error(f"Failed to get documents by kb: {str(e)}")
+        raise
+
+
+@retry(max_retries=3, backoff_factor=1.0, initial_delay=0.5, timeout=30.0)
+def get_document_by_id(
+    document_id: UUID,
+    columns: str = "*",
+) -> Optional[Dict[str, Any]]:
+    """按 ID 查询单个文档分片（详情弹窗按需加载时使用）。"""
+    client = get_supabase_client()
+    logger.info(f"Getting document by id: {document_id}")
+
+    def get_func(sb_client):
+        result = (
+            sb_client.table("documents")
+            .select(columns)
+            .eq("id", str(document_id))
+            .execute()
+        )
+        return result.data[0] if result.data else None
+
+    try:
+        result = client.execute_with_client(get_func)
+        logger.info(f"Document {'found' if result else 'not found'}: {document_id}")
+        return result
+    except Exception as e:
+        logger.error(f"Failed to get document by id: {str(e)}")
         raise
 
 

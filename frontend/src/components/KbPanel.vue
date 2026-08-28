@@ -3,7 +3,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
-import { deleteKb, listDocuments, listKbs, retrieve, uploadDocuments } from '../api/kb.js'
+import { deleteKb, getDocument, listDocuments, listKbs, retrieve, uploadDocuments } from '../api/kb.js'
 
 const kbs = ref([])
 const currentKb = ref('') // 当前选中的知识库
@@ -21,6 +21,22 @@ const query = ref('')
 const topK = ref(5)
 const hits = ref([])
 const retrieving = ref(false)
+
+// 分片详情弹窗：列表只带 300 字预览，点击时按 ID 拉取完整内容
+const detailDoc = ref(null)
+const detailLoading = ref(false)
+
+async function showDetail(doc) {
+  detailLoading.value = true
+  detailDoc.value = { ...doc, content: '⏳ 加载完整内容...' }
+  try {
+    detailDoc.value = await getDocument(doc.id)
+  } catch (err) {
+    detailDoc.value = { ...doc, content: '⚠️ 加载失败：' + err.message }
+  } finally {
+    detailLoading.value = false
+  }
+}
 
 onMounted(refreshKbs)
 
@@ -155,7 +171,13 @@ async function doRetrieve() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(d, i) in docs" :key="i">
+            <tr
+              v-for="(d, i) in docs"
+              :key="i"
+              class="doc-row"
+              title="点击查看完整内容"
+              @click="showDetail(d)"
+            >
               <td>{{ i + 1 }}</td>
               <td>{{ d.filename }}</td>
               <td class="preview">{{ d.content.slice(0, 120) }}{{ d.content.length > 120 ? '...' : '' }}</td>
@@ -163,6 +185,24 @@ async function doRetrieve() {
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- 分片完整内容弹窗 -->
+      <div v-if="detailDoc" class="modal-mask" @click.self="detailDoc = null">
+        <div class="modal">
+          <div class="modal-head">
+            <b>{{ detailDoc.filename }}</b>
+            <span class="modal-file">（第 {{ detailDoc.page_number || '-' }} 页 · 分类 {{ detailDoc.category || '-' }} · {{ detailDoc.content_len || detailDoc.content.length }} 字符）</span>
+            <button class="modal-close" @click="detailDoc = null">✕</button>
+          </div>
+          <div
+            v-if="detailDoc.metadata && Object.keys(detailDoc.metadata).length"
+            class="modal-meta"
+          >
+            <span v-for="(v, k) in detailDoc.metadata" :key="k" class="meta-tag">{{ k }}: {{ v }}</span>
+          </div>
+          <pre class="modal-body">{{ detailDoc.content }}</pre>
+        </div>
       </div>
 
       <div class="card">
@@ -348,6 +388,90 @@ button.ghost:disabled {
 .doc-table .preview {
   color: var(--text-sub);
   word-break: break-all;
+}
+
+.doc-table .doc-row {
+  cursor: pointer;
+}
+
+.doc-table .doc-row:hover {
+  background: #f6f9ff;
+}
+
+/* 分片详情弹窗 */
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  width: min(860px, 92vw);
+  max-height: 82vh;
+  background: #fff;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.modal-file {
+  font-size: 12px;
+  color: var(--text-sub);
+  flex: 1;
+}
+
+.modal-close {
+  border: none;
+  background: none;
+  font-size: 15px;
+  color: var(--text-sub);
+  padding: 4px 8px;
+}
+
+.modal-close:hover {
+  color: #e5484d;
+}
+
+.modal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 16px;
+  background: #f7f8fa;
+  border-bottom: 1px solid var(--border);
+}
+
+.meta-tag {
+  font-size: 12px;
+  background: #eef1f5;
+  border-radius: 6px;
+  padding: 2px 8px;
+  color: var(--text-sub);
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
 }
 
 .retrieve-bar {

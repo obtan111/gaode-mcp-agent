@@ -7,10 +7,17 @@ export async function listKbs() {
   return resp.json()
 }
 
-/** 知识库分片列表（已剥离 vector 字段） */
+/** 知识库分片列表（content 为前 300 字预览，附 content_len 总长） */
 export async function listDocuments(kbName) {
   const resp = await fetch(`/api/kb/${encodeURIComponent(kbName)}/documents`)
   if (!resp.ok) throw new Error(`加载文档失败: HTTP ${resp.status}`)
+  return resp.json()
+}
+
+/** 单个分片完整内容（详情弹窗按需加载） */
+export async function getDocument(docId) {
+  const resp = await fetch(`/api/kb/documents/${docId}`)
+  if (!resp.ok) throw new Error(`加载分片详情失败: HTTP ${resp.status}`)
   return resp.json()
 }
 

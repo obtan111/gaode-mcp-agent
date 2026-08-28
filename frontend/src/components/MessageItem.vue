@@ -138,29 +138,148 @@ async function toggleTts() {
   cursor: wait;
 }
 
-/* markdown 渲染出来的元素间距微调（:deep 穿透 scoped 作用域） */
+/* ---------- markdown 渲染样式 ----------
+   大模型回答常包含表格/标题/引用/代码，markdown-it 只输出裸标签，
+   没有这套样式时页面会挤成一团，观感残缺。 */
+
+.md {
+  overflow-wrap: anywhere; /* 长 URL/长单词强制换行，防撑破气泡 */
+}
+
 .md :deep(p) {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 
 .md :deep(p:last-child) {
   margin-bottom: 0;
 }
 
-.md :deep(pre) {
-  background: #f6f8fa;
-  padding: 10px;
-  border-radius: 8px;
+.md :deep(h1),
+.md :deep(h2),
+.md :deep(h3),
+.md :deep(h4) {
+  margin: 14px 0 8px;
+  line-height: 1.4;
+}
+
+.md :deep(h1) {
+  font-size: 20px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.md :deep(h2) {
+  font-size: 17px;
+}
+
+.md :deep(h3) {
+  font-size: 15px;
+}
+
+.md :deep(h4) {
+  font-size: 14px;
+}
+
+/* 表格：默认无边框，需显式补全 */
+.md :deep(table) {
+  border-collapse: collapse;
+  margin: 10px 0;
+  width: 100%;
+  font-size: 13px;
+  display: block; /* 窄屏允许横向滚动 */
   overflow-x: auto;
 }
 
-.md :deep(code) {
-  font-family: Consolas, monospace;
-  font-size: 13px;
+.md :deep(th),
+.md :deep(td) {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap; /* 表格列不折行，配合横向滚动保持对齐 */
 }
 
+.md :deep(th) {
+  background: #f6f8fa;
+  font-weight: 600;
+}
+
+/* 引用块 */
+.md :deep(blockquote) {
+  margin: 10px 0;
+  padding: 6px 12px;
+  border-left: 3px solid var(--accent);
+  background: #f6f9ff;
+  color: var(--text-sub);
+  border-radius: 0 6px 6px 0;
+}
+
+.md :deep(blockquote p) {
+  margin: 4px 0;
+}
+
+/* 链接 */
+.md :deep(a) {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.md :deep(a:hover) {
+  text-decoration: underline;
+}
+
+/* 行内代码 */
+.md :deep(code:not(pre code)) {
+  background: #eef1f5;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 12.5px;
+  color: #d63384;
+}
+
+/* 代码块 */
+.md :deep(pre) {
+  background: #f6f8fa;
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+
+.md :deep(pre code) {
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: inherit;
+  background: none;
+  padding: 0;
+}
+
+/* 列表 */
 .md :deep(ul),
 .md :deep(ol) {
-  padding-left: 20px;
+  padding-left: 22px;
+  margin: 6px 0;
+}
+
+.md :deep(li) {
+  margin: 3px 0;
+}
+
+/* 分隔线 */
+.md :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+
+/* 图片限制在气泡内 */
+.md :deep(img) {
+  max-width: 100%;
+  border-radius: 8px;
+}
+
+/* 加粗强调 */
+.md :deep(strong) {
+  font-weight: 600;
 }
 </style>

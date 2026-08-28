@@ -1,7 +1,10 @@
 """知识库路由：文档上传并向量化、内容查看、删除与检索调试。"""
 
+import json
 import os
-from typing import List
+import time
+import uuid
+from typing import Dict, List, Tuple
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
@@ -9,6 +12,7 @@ from backend.schemas.kb import RetrieveRequest, RetrieveResponse
 from src.config.settings import Config
 from src.database.crud import (
     delete_documents_by_filename,
+    get_document_by_id,
     get_documents_by_kb,
     get_knowledge_base_names,
     insert_document,
@@ -43,16 +47,75 @@ def read_kbs():
     return get_knowledge_base_names()
 
 
+_DOC_COLUMNS = "id, filename, page_number, category, kb_name, created_at"
+_DETAIL_COLUMNS = "id, filename, content, page_number, category, metadata, kb_name, created_at"
+_LIST_PREVIEW_CHARS = 300
+
+# 列表 TTL 缓存：跨海链路往返约 1.5 秒，缓存让反复查看/切换知识库秒开。
+# 载荷本身已降到 KB 级，缓存主要吸收网络 RTT；上传/删除时主动失效。
+_LIST_CACHE: Dict[str, Tuple[float, list]] = {}
+_LIST_CACHE_TTL = 30.0
+
+
+def _invalidate_list_cache(kb_name: str) -> None:
+    _LIST_CACHE.pop(kb_name, None)
+
+
+def _strip_embedding_vector(doc: dict) -> dict:
+    """剔除 metadata 里重复存放的向量（约 22KB/行），列表与详情都不需要它。"""
+    metadata = doc.get("metadata")
+    if isinstance(metadata, dict):
+        metadata.pop("embedding_vector", None)
+    elif isinstance(metadata, str):
+        try:
+            parsed = json.loads(metadata)
+            if isinstance(parsed, dict):
+                parsed.pop("embedding_vector", None)
+                doc["metadata"] = parsed
+        except (ValueError, TypeError):
+            pass
+    return doc
+
+
 @router.get("/{kb_name}/documents")
 def read_documents(kb_name: str):
-    """返回知识库全部分片（剥离 vector 大字段）。"""
-    docs = get_documents_by_kb(kb_name)
-    return [{k: v for k, v in doc.items() if k != "vector"} for doc in docs]
+    """返回知识库分片列表。
+
+    列表接口保持轻量：不拉 metadata（内含 22KB/行的向量副本），
+    内容截断为前 300 字预览并附 content_len 总长；
+    完整内容由 GET /api/kb/documents/{id} 按需加载。
+    """
+    now = time.time()
+    cached = _LIST_CACHE.get(kb_name)
+    if cached and cached[0] > now:
+        return cached[1]
+
+    docs = get_documents_by_kb(kb_name, columns=_DOC_COLUMNS)
+    for doc in docs:
+        content = doc.get("content") or ""
+        doc["content_len"] = len(content)
+        doc["content"] = content[:_LIST_PREVIEW_CHARS]
+    _LIST_CACHE[kb_name] = (now + _LIST_CACHE_TTL, docs)
+    return docs
+
+
+@router.get("/documents/{doc_id}")
+def read_document(doc_id: str):
+    """按 ID 返回单个分片完整内容（详情弹窗用）。"""
+    try:
+        uid = uuid.UUID(doc_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="无效的文档 ID")
+    doc = get_document_by_id(uid, columns=_DETAIL_COLUMNS)
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档不存在")
+    return _strip_embedding_vector(doc)
 
 
 @router.delete("/{kb_name}")
 def remove_kb(kb_name: str):
-    docs = get_documents_by_kb(kb_name)
+    _invalidate_list_cache(kb_name)
+    docs = get_documents_by_kb(kb_name, columns="filename")
     filenames = {doc.get("filename", "") for doc in docs} - {""}
     deleted_chunks = sum(delete_documents_by_filename(name) or 0 for name in filenames)
     logger.info(f"Deleted KB '{kb_name}': {deleted_chunks} chunks")
@@ -65,6 +128,7 @@ async def upload_documents(kb_name: str, files: List[UploadFile] = File(...)):
     from backend.core.deps import get_embedding_factory
 
     embedding = get_embedding_factory().create_embedding("zhipu")
+    _invalidate_list_cache(kb_name)
     success_count = 0
     fail_count = 0
     failures: List[str] = []
