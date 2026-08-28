@@ -96,7 +96,7 @@ class TestEmbeddingFactory:
         
         assert embedding is not None
         assert isinstance(embedding, ZhipuEmbeddings)
-        assert embedding.dimensions == 1536
+        assert embedding.dimensions == 1024
         
         EmbeddingFactory._instance = None
 
@@ -144,7 +144,7 @@ class TestEmbeddingFactory:
     def test_default_dimension(self):
         factory = EmbeddingFactory()
         
-        assert factory.default_dimension == 1536
+        assert factory.default_dimension == 1024
         
         EmbeddingFactory._instance = None
 
@@ -197,7 +197,7 @@ class TestZhipuEmbeddings:
         
         mock_response = Mock()
         mock_data = Mock()
-        mock_data.embedding = [0.1] * 1536
+        mock_data.embedding = [0.1] * 1024
         mock_response.data = [mock_data]
         mock_client.embeddings.create.return_value = mock_response
         
@@ -205,7 +205,7 @@ class TestZhipuEmbeddings:
         
         result = embedding.embed_query("Hello, world!")
         
-        assert len(result) == 1536
+        assert len(result) == 1024
         mock_client.embeddings.create.assert_called_once()
 
     @patch('zhipuai.ZhipuAI')
@@ -215,7 +215,7 @@ class TestZhipuEmbeddings:
         
         mock_response = Mock()
         mock_data = Mock()
-        mock_data.embedding = [0.1] * 1536
+        mock_data.embedding = [0.1] * 1024
         mock_response.data = [mock_data]
         mock_client.embeddings.create.return_value = mock_response
         
@@ -224,7 +224,7 @@ class TestZhipuEmbeddings:
         result = embedding.embed_documents(["Hello", "World"])
         
         assert len(result) == 2
-        assert len(result[0]) == 1536
+        assert len(result[0]) == 1024
         assert mock_client.embeddings.create.call_count == 2
 
 

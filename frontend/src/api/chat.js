@@ -83,14 +83,3 @@ function handleFrame(frame, onEvent) {
     console.warn('SSE 帧解析失败:', frame, err)
   }
 }
-
-/** 非流式兜底接口（SSE 异常时的降级通道，当前前端主流程不用它） */
-export async function chatOnce(message, sessionId) {
-  const resp = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, session_id: sessionId }),
-  })
-  if (!resp.ok) throw new Error(`请求失败: HTTP ${resp.status}`)
-  return resp.json() // { session_id, answer, elapsed_ms }
-}

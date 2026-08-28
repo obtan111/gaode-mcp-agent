@@ -50,7 +50,7 @@ class TestDocumentsCRUD:
         
         result = insert_document(
             content="test content",
-            vector=[0.1] * 1536,
+            vector=[0.1] * 1024,
             filename="test.pdf",
             page_number=1,
             category="test",
@@ -72,7 +72,7 @@ class TestDocumentsCRUD:
         mock_client.execute_with_client.return_value = [{"id": "1", "content": "test"}]
         
         results = search_documents_by_vector(
-            query_vector=[0.1] * 1536,
+            query_vector=[0.1] * 1024,
             limit=5,
             kb_name="test_kb"
         )

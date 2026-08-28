@@ -149,7 +149,7 @@ class TestSchemaSQL:
         assert "travel_plan" in ALL_SCHEMAS_SQL
 
     def test_documents_table_has_vector_column(self):
-        assert "vector vector(1536)" in ALL_SCHEMAS_SQL
+        assert "vector vector(1024)" in ALL_SCHEMAS_SQL
 
     def test_indexes_are_created(self):
         assert "CREATE INDEX" in ALL_SCHEMAS_SQL

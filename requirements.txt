@@ -1,8 +1,6 @@
 # 核心框架
 langchain
 langgraph
-gradio>=4.0
-fastmcp
 
 # 数据库
 supabase
@@ -10,22 +8,13 @@ pgvector
 
 # 文档处理
 pymupdf
-chromadb
 python-dotenv
 
 # 网络/HTTP
 requests
-beautifulsoup4
 
 # 机器学习/检索
-scikit-learn
 sentence-transformers
-rank_bm25
-faiss-cpu
-
-# 重试/配置
-tenacity
-pyyaml
 
 # 语音
 pyttsx3
