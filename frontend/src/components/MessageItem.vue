@@ -50,12 +50,21 @@ async function toggleTts() {
 
 <template>
   <div class="row" :class="props.msg.role">
+    <!-- 助手头像在左 -->
+    <div v-if="props.msg.role === 'assistant'" class="avatar assistant">🤖</div>
+
     <div class="bubble-wrap">
       <div class="bubble">
+        <!-- 意图分析阶段还没有任何内容时，显示思考中占位，避免空白方框 -->
+        <div v-if="props.msg.role === 'assistant' && props.streaming && !props.msg.content" class="thinking">
+          正在思考…
+        </div>
         <!-- 流式生成中按纯文本渲染：未闭合的代码围栏/表格会让
              markdown 半成品形态残缺，纯文本保证动画过程始终完整可读，
              生成完成后一次性切换为 markdown 排版 -->
-        <div v-if="props.msg.role === 'assistant' && !props.streaming" class="md" v-html="renderedHtml" />
+        <template v-else-if="props.msg.role === 'assistant' && !props.streaming">
+          <div class="md" v-html="renderedHtml" />
+        </template>
         <div v-else class="plain">{{ props.msg.content }}</div>
         <!-- 用户消息附带的上传图片缩略图 -->
         <div v-if="props.msg.role === 'user' && props.msg.images && props.msg.images.length" class="msg-imgs">
@@ -75,16 +84,65 @@ async function toggleTts() {
         </button>
       </div>
     </div>
+
+    <!-- 用户头像在右 -->
+    <div v-if="props.msg.role === 'user'" class="avatar user">我</div>
   </div>
 </template>
 
 <style scoped>
 .row {
   display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+/* 头像 */
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.avatar.assistant {
+  background: #eef1f5;
+  border: 1px solid var(--border);
+}
+
+.avatar.user {
+  background: linear-gradient(135deg, var(--accent), #6aa1ff);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .row.user {
   justify-content: flex-end;
+}
+
+/* 思考中占位 */
+.thinking {
+  color: var(--text-sub);
+  font-size: 13px;
+  min-width: 100px;
+}
+
+.thinking::after {
+  content: '';
+  animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
 }
 
 .bubble-wrap {

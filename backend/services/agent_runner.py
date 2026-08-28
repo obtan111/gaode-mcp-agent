@@ -286,6 +286,11 @@ def iter_chat_events(
 
         elapsed_ms = int((time.time() - started) * 1000)
 
+        # 先发出 done：客户端收到完整回答后即可结束动画（切 markdown、停光标）。
+        # 数据库持久化与长期记忆收尾放到 done 之后执行——Supabase 偶发
+        # 超时（10-30s）时不再拖住前端等待，与新会话的持久化互不阻塞。
+        yield "done", {"session_id": session_id, "answer": answer, "elapsed_ms": elapsed_ms}
+
         _persist_exchange(session_id, message, answer, set_title=not history_before)
         _save_memory(_get_agent_graph(), message, answer, session_id)
 
@@ -293,8 +298,6 @@ def iter_chat_events(
             audio = _synthesize_audio(answer)
             if audio:
                 yield "tts", {"audio": audio}
-
-        yield "done", {"session_id": session_id, "answer": answer, "elapsed_ms": elapsed_ms}
     except Exception as exc:
         logger.error(f"Chat stream failed: {exc}", exc_info=True)
         yield "error", {"message": f"处理请求时出错：{exc}"}

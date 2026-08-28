@@ -34,6 +34,11 @@ const isGenerating = computed(
     props.messages[props.messages.length - 1].role === 'assistant',
 )
 
+// 光标只在已有内容时显示；内容为空时由气泡内的"正在思考…"占位
+const showCursor = computed(
+  () => isGenerating.value && (props.messages[props.messages.length - 1]?.content || '').length > 0,
+)
+
 watch(
   () => props.messages,
   async () => {
@@ -154,7 +159,7 @@ async function onRecordStop() {
         :streaming="props.streaming && i === messages.length - 1 && msg.role === 'assistant'"
       />
 
-      <div v-if="isGenerating" class="cursor">▍</div>
+      <div v-if="showCursor" class="cursor">▍</div>
     </div>
 
     <!-- 待发送图片预览条 -->
