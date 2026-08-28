@@ -49,6 +49,13 @@
 
 ## 2026-08-27 更新记录
 
+> **2026-08-28 补充**：前端功能与 Gradio 版对齐——
+> 1. 助手回答支持 🔊 TTS 播放（悬停消息出现按钮，新增 `POST /api/voice/tts`）；
+> 2. 🎤 语音输入（MediaRecorder 录音 → 浏览器内 webm 转 WAV 16kHz → `POST /api/voice/asr` → 自动填入输入框）；
+> 3. 📎 图片上传（base64 data URI 随消息发送，支持视觉模型 deepseek-vl / zhipu-4v，配合侧栏新增的模型选择下拉框）；
+> 4. 侧栏顶部「对话 / 知识库」视图切换：知识库面板支持上传向量化、分片查看、删除知识库、检索调试（对应后端 `/api/kb` 全部接口）；
+> 5. 📤 导出当前会话为 Markdown（纯前端 Blob 下载）。
+
 本次更新将项目从"Gradio 单体应用"升级为**前后端分离的 Web 架构**：业务层（src/）保持不动，新增 FastAPI 后端与 Vue 3 前端，并修复了两个环境问题。提交记录：`924c5d8`（后端）→ `7d61b47`（流式修复）→ `f72c311`（降级修复）→ `383adaa`（前端）。
 
 ### 本次新增内容
@@ -128,6 +135,8 @@ curl -N -X POST http://127.0.0.1:8000/api/chat/stream \
 | GET | `/api/kb/{kb_name}/documents` | 查看知识库分片 |
 | DELETE | `/api/kb/{kb_name}` | 删除知识库 |
 | POST | `/api/kb/retrieve` | 检索调试（混合检索管道直连） |
+| POST | `/api/voice/tts` | 文本转语音（返回 mp3 data URI） |
+| POST | `/api/voice/asr` | 语音转文字（multipart 上传 wav/mp3 等） |
 | GET | `/api/health` | 健康检查 |
 
 **SSE 事件协议**（`/api/chat/stream` 返回，事件定义见 `backend/services/agent_runner.py`）：

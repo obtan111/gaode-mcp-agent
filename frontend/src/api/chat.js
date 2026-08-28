@@ -18,18 +18,20 @@
  * @param {object}   opts
  * @param {string}   opts.message    用户输入
  * @param {string?}  opts.sessionId  会话 ID（为空则后端自动新建）
+ * @param {string}   opts.modelType  模型类型 deepseek / deepseek-vl / zhipu / zhipu-4v
+ * @param {string[]} opts.images     base64 data URI 图片列表（多模态输入）
  * @param {function} opts.onEvent    事件回调 onEvent(eventName, dataObject)
  * @returns {Promise<string>} 最终会话 ID（供后续请求复用）
  */
-export async function streamChat({ message, sessionId, onEvent }) {
+export async function streamChat({ message, sessionId, modelType, images, onEvent }) {
   const resp = await fetch('/api/chat/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       message,
       session_id: sessionId || null,
-      model_type: 'deepseek',
-      images: [],
+      model_type: modelType || 'deepseek',
+      images: images || [],
       tts: false,
     }),
   })

@@ -27,6 +27,8 @@ def test_core_routes_registered():
     assert "/api/sessions" in paths
     assert "/api/kb" in paths
     assert "/api/kb/retrieve" in paths
+    assert "/api/voice/tts" in paths
+    assert "/api/voice/asr" in paths
 
 
 def test_chat_request_validation():

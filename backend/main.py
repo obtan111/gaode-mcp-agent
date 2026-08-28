@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import chat, kb, sessions
+from backend.routers import chat, kb, sessions, voice
 
 
 @asynccontextmanager
@@ -45,6 +45,7 @@ app.add_middleware(
 app.include_router(chat.router)
 app.include_router(sessions.router)
 app.include_router(kb.router)
+app.include_router(voice.router)
 
 
 @app.get("/api/health", tags=["system"])

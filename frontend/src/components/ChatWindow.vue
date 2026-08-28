@@ -1,19 +1,31 @@
-<!-- 聊天窗口：消息列表 + 状态提示 + 输入框 -->
+<!-- 聊天窗口：消息列表 + 多模态输入（图片/语音）+ 发送 -->
 
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
 import MessageItem from './MessageItem.vue'
+import { blobToWav, recognizeSpeech } from '../api/voice.js'
 
 const props = defineProps({
   messages: { type: Array, default: () => [] },
   streaming: { type: Boolean, default: false },
+  model: { type: String, default: 'deepseek' },
 })
 const emit = defineEmits(['send'])
 
-const input = ref('') // 输入框内容（v-model 双向绑定）
-const listEl = ref(null) // 消息列表 DOM 引用（ref="listEl"），用于滚动控制
+const MAX_IMAGE_MB = 5
 
-// 计算最后一条助手消息是否正在生成中 → 控制光标动画显示
+const input = ref('')
+const images = ref([]) // base64 data URI 列表（待发送）
+const listEl = ref(null)
+const fileInput = ref(null) // 隐藏的图片选择 input
+
+// ---------- 录音状态 ----------
+const recording = ref(false)
+const asrBusy = ref(false)
+let mediaRecorder = null
+let mediaStream = null
+let recordChunks = []
+
 const isGenerating = computed(
   () =>
     props.streaming &&
@@ -21,7 +33,6 @@ const isGenerating = computed(
     props.messages[props.messages.length - 1].role === 'assistant',
 )
 
-// watch 侦听器：消息数组变化后，等 DOM 更新完（nextTick）再滚到底部
 watch(
   () => props.messages,
   async () => {
@@ -31,19 +42,89 @@ watch(
   { deep: true },
 )
 
-/** 发送：把输入框内容上抛给 App.vue，并清空输入框 */
 function submit() {
   const text = input.value.trim()
-  if (!text || props.streaming) return
-  emit('send', text)
+  if ((!text && images.value.length === 0) || props.streaming) return
+  // 图片随消息一起上抛，由 App.vue 组装请求
+  emit('send', { text, images: [...images.value] })
   input.value = ''
+  images.value = []
+}
+
+// ---------- 图片上传 ----------
+function pickImage() {
+  fileInput.value.click()
+}
+
+function onImageChange(event) {
+  const file = event.target.files[0]
+  event.target.value = '' // 允许重复选择同一文件
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    alert('请选择图片文件')
+    return
+  }
+  if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+    alert(`图片不能超过 ${MAX_IMAGE_MB}MB`)
+    return
+  }
+  // FileReader 把图片读成 base64 data URI（与后端 images 字段格式一致）
+  const reader = new FileReader()
+  reader.onload = () => images.value.push(reader.result)
+  reader.readAsDataURL(file)
+}
+
+function removeImage(index) {
+  images.value.splice(index, 1)
+}
+
+// ---------- 语音输入（录音 → webm 转 WAV → ASR → 填入输入框） ----------
+async function toggleMic() {
+  if (props.streaming || asrBusy.value) return
+
+  // 正在录音 → 停止并进入识别
+  if (recording.value) {
+    mediaRecorder.stop()
+    return
+  }
+
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    mediaRecorder = new MediaRecorder(mediaStream)
+    recordChunks = []
+    mediaRecorder.ondataavailable = (e) => recordChunks.push(e.data)
+    mediaRecorder.onstop = onRecordStop
+    mediaRecorder.start()
+    recording.value = true
+  } catch (err) {
+    alert('无法访问麦克风：' + err.message)
+  }
+}
+
+async function onRecordStop() {
+  mediaStream.getTracks().forEach((t) => t.stop())
+  recording.value = false
+  asrBusy.value = true
+  try {
+    // 浏览器录音是 webm 容器，服务端 ASR 不认，先在本地转 WAV
+    const wav = await blobToWav(new Blob(recordChunks))
+    const res = await recognizeSpeech(wav, 'record.wav')
+    if (res.text) {
+      input.value = input.value ? `${input.value} ${res.text}` : res.text
+    } else {
+      alert('未识别到语音内容')
+    }
+  } catch (err) {
+    alert('语音识别失败：' + err.message)
+  } finally {
+    asrBusy.value = false
+  }
 }
 </script>
 
 <template>
   <main class="chat">
     <div ref="listEl" class="list">
-      <!-- 空状态提示 -->
       <div v-if="messages.length === 0" class="empty">
         <h2>私人助手</h2>
         <p>基于 LangGraph + RAG + MCP 的个人智能助手</p>
@@ -51,19 +132,40 @@ function submit() {
 
       <MessageItem v-for="(msg, i) in messages" :key="i" :msg="msg" />
 
-      <!-- 正在生成时显示打字光标 -->
       <div v-if="isGenerating" class="cursor">▍</div>
     </div>
 
+    <!-- 待发送图片预览条 -->
+    <div v-if="images.length" class="preview-bar">
+      <div v-for="(img, i) in images" :key="i" class="thumb">
+        <img :src="img" alt="预览" />
+        <button class="remove" @click="removeImage(i)">✕</button>
+      </div>
+    </div>
+
     <div class="input-bar">
-      <!-- @keydown.enter：回车发送；.enter 是 Vue 的事件修饰符语法 -->
+      <!-- 图片上传（隐藏 input，由 📎 按钮触发） -->
+      <input ref="fileInput" type="file" accept="image/*" hidden @change="onImageChange" />
+      <button class="icon-btn" title="上传图片" :disabled="props.streaming" @click="pickImage">📎</button>
+
+      <!-- 麦克风：点击开始录音，再点结束并识别 -->
+      <button
+        class="icon-btn"
+        :class="{ recording }"
+        :title="recording ? '停止录音' : '语音输入'"
+        :disabled="props.streaming || asrBusy"
+        @click="toggleMic"
+      >
+        {{ asrBusy ? '⏳' : recording ? '⏹' : '🎤' }}
+      </button>
+
       <input
         v-model="input"
         :disabled="props.streaming"
         placeholder="输入消息，回车发送..."
         @keydown.enter="submit"
       />
-      <button :disabled="props.streaming || !input.trim()" @click="submit">
+      <button :disabled="props.streaming || (!input.trim() && images.length === 0)" @click="submit">
         {{ props.streaming ? '生成中' : '发送' }}
       </button>
     </div>
@@ -111,12 +213,71 @@ function submit() {
   }
 }
 
+.preview-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10%;
+}
+
+.thumb {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.thumb .remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+}
+
 .input-bar {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   padding: 16px 10%;
   background: var(--bg-side);
   border-top: 1px solid var(--border);
+}
+
+.icon-btn {
+  width: 44px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 16px;
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon-btn.recording {
+  background: #ffe9e9;
+  border-color: #e5484d;
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .input-bar input {
@@ -132,7 +293,8 @@ function submit() {
   border-color: var(--accent);
 }
 
-.input-bar button {
+.input-bar button[type=''],
+.input-bar > button:last-of-type {
   padding: 0 24px;
   border: none;
   border-radius: 10px;
@@ -141,7 +303,7 @@ function submit() {
   font-size: 14px;
 }
 
-.input-bar button:disabled {
+.input-bar > button:last-of-type:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
