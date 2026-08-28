@@ -270,6 +270,12 @@ def search_documents_by_vector(
                     metadata = {}
             
             embeddings = metadata.get("embedding_vector") or doc.get("embeddings") or doc.get("vector")
+            if isinstance(embeddings, str):
+                # pgvector 列经 PostgREST 返回为字符串 "[0.1,0.2,...]"，需先解析
+                try:
+                    embeddings = json.loads(embeddings)
+                except (ValueError, TypeError):
+                    embeddings = None
             if embeddings and isinstance(embeddings, list):
                 similarity = _cosine_similarity(query_vector, embeddings)
                 if similarity >= similarity_threshold:
