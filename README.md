@@ -77,6 +77,7 @@
 │   ├── rag/                  # 文档解析 / 切分 / 混合检索管道
 │   └── utils/                # 日志 / 重试 / 异常 / 导出
 ├── scripts/                  # SQL 初始化与迁移脚本
+├── knowledge/                # 知识库源文档（结构化 Markdown，入库后向量化）
 ├── tests/                    # pytest 测试
 ├── run_backend.bat           # 后端启动脚本（固定 Python 3.11）
 ├── requirements.txt
