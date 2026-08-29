@@ -203,6 +203,67 @@ curl -X POST http://127.0.0.1:8000/api/kb/retrieve \
 
 ---
 
+## Docker 部署
+
+### 本地/服务器一键部署
+
+前提：服务器已安装 Docker 与 Docker Compose（v2+）。
+
+```bash
+# 1. 获取代码
+git clone https://github.com/obtan111/gaode-mcp-agent.git
+cd gaode-mcp-agent
+
+# 2. 配置密钥（与本地开发同一份模板）
+cp .env.example .env
+#    编辑 .env 填入 SUPABASE_URL/KEY、DEEPSEEK_API_KEY、ZHIPU_API_KEY 等
+
+# 3. 构建并启动（首次构建约 5-10 分钟，主要耗时在 torch）
+docker compose up -d --build
+
+# 4. 访问
+#    http://<服务器IP>:18080
+```
+
+常用运维命令：
+
+```bash
+docker compose ps                  # 容器状态（backend 应为 healthy）
+docker compose logs -f backend     # 跟踪后端日志
+docker compose down                # 停止
+docker compose up -d --build       # 更新代码后重建
+```
+
+### 架构说明
+
+| 容器 | 镜像 | 职责 |
+| ---- | ---- | ---- |
+| `frontend` | node 构建阶段 → nginx:alpine | 托管前端静态资源 + `/api` 反向代理 |
+| `backend` | python:3.11-slim + uvicorn | FastAPI 业务服务（不对外暴露端口） |
+
+- 唯一对外入口是 Nginx 的 **18080** 端口（8080 常被 Dify 等占用）；
+- 前后端同源，生产环境天然无 CORS 问题；
+- Nginx 已针对 SSE 关闭代理缓冲（`proxy_buffering off`）并放宽超时（300s），
+  上传体积上限 60MB；
+- 密钥通过 `env_file` 注入容器，**不进入镜像**（`.dockerignore` 已排除 `.env`）。
+
+### 注意事项
+
+1. **防火墙/安全组**：放行 18080 端口（云服务器还需在控制台安全组中配置）；
+2. **HTTPS**：如需域名 + HTTPS，推荐在前面再叠一层 Caddy：
+   ```
+   your.domain.com {
+       reverse_proxy 127.0.0.1:18080
+   }
+   ```
+   Caddy 自动申请续期证书，两行配置完事；
+3. **镜像加速**：Dockerfile 内已配置清华 PyPI 镜像与 HF 镜像
+   （`HF_ENDPOINT=https://hf-mirror.com`，供 Cross-Encoder 首次下载）；
+4. **数据持久化**：会话与知识库数据存于 Supabase 云端，容器本身无状态，
+   重建/升级不丢数据。
+
+---
+
 ## API 参考
 
 ### 接口一览

@@ -1,0 +1,16 @@
+# 构建上下文排除项：敏感文件、运行时数据、无关目录
+.git
+**/__pycache__
+**/*.pyc
+*.pyo
+.env
+logs/
+exports/
+data/
+.pytest_cache
+frontend/node_modules
+frontend/dist
+改动记录_*.md
+答辩问题文稿.md
+项目演示文稿.md
+长沙旅游.txt

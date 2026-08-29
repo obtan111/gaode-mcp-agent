@@ -1,0 +1,41 @@
+# ============================================================
+# 私人助手 - Docker Compose 编排
+#
+# 用法：
+#   docker compose up -d --build    构建并启动
+#   docker compose logs -f backend  查看后端日志
+#   docker compose down             停止
+#
+# 访问入口：http://<服务器IP>:18080（8080 常被 Dify 等占用，故用 18080）
+# 说明：
+# - .env 由 env_file 注入容器（密钥不进入镜像）
+# - backend 不对外发布端口，统一经 Nginx 反代（同源，无 CORS 问题）
+# - 需要 HTTPS 时在服务器上叠加 Caddy/证书（见 README 部署章节）
+# ============================================================
+name: assistant
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    expose:
+      - "8000"          # 仅容器网络内可达
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "18080:80"      # 对外唯一入口
+    depends_on:
+      - backend
+    restart: unless-stopped

@@ -1,5 +1,7 @@
 # 核心框架
 langchain
+langchain-core
+langchain-text-splitters
 langgraph
 
 # 数据库
@@ -8,6 +10,7 @@ pgvector
 
 # 文档处理
 pymupdf
+chardet
 python-dotenv
 
 # 网络/HTTP
