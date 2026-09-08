@@ -1,0 +1,67 @@
+.sessions-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #F4F6FB;
+}
+
+.sessions-list {
+  flex: 1;
+  overflow: hidden;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  background: #FFFFFF;
+  margin: 16rpx 24rpx 0;
+  padding: 28rpx 28rpx;
+  border-radius: 20rpx;
+  box-shadow: 0 2rpx 8rpx rgba(31, 35, 41, 0.05);
+}
+
+.session-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.session-title {
+  font-size: 30rpx;
+  font-weight: 500;
+  color: #1F2329;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-preview {
+  font-size: 24rpx;
+  color: #8A9099;
+  margin-top: 8rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-time {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  color: #A0A6AD;
+  margin-left: 20rpx;
+}
+
+.empty-sub {
+  color: #A0A6AD;
+  font-size: 24rpx;
+  margin-top: 12rpx;
+}
+
+.new-btn-wrap {
+  padding: 20rpx 40rpx calc(24rpx + env(safe-area-inset-bottom));
+  background: #F4F6FB;
+}
+
+.new-btn {
+  width: 100%;
+  box-sizing: border-box;
+}

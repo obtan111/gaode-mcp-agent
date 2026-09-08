@@ -1,0 +1,9 @@
+{
+  "desc": "AI 旅行助手小程序页面索引配置",
+  "rules": [
+    {
+      "action": "disallow",
+      "page": "*"
+    }
+  ]
+}

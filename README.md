@@ -34,8 +34,8 @@
 ```
 ┌────────────────┐   HTTP/SSE   ┌─────────────────────┐   直接复用    ┌──────────────────┐
 │   Vue 3 前端    │ ───────────▶ │     FastAPI 后端     │ ───────────▶ │    src/ 业务层    │
-│ (Vite :5173)   │  开发代理    │   (uvicorn :8000)   │               │ AgentGraph / RAG │
-│ 聊天/会话/知识库 │  /api → 8000 │ routers/schemas/    │               │ / MCP / CRUD     │
+│ (Vite :5173)   │  开发代理    │   (uvicorn :8100)   │               │ AgentGraph / RAG │
+│ 聊天/会话/知识库 │  /api → 8100 │ routers/schemas/    │               │ / MCP / CRUD     │
 └────────────────┘              │ services            │               └──────────────────┘
                                 └─────────────────────┘
                                 │
@@ -63,7 +63,7 @@
 │   ├── routers/              # chat(SSE) / sessions / kb / voice 路由
 │   └── services/agent_runner.py  # 会话服务层（事件流桥接 + 持久化）
 ├── frontend/                 # Vue 3 前端（Vite）
-│   ├── vite.config.js        # 开发代理 /api → 127.0.0.1:8000
+│   ├── vite.config.js        # 开发代理 /api → 127.0.0.1:8100
 │   └── src/
 │       ├── App.vue           # 根组件（状态管理）
 │       ├── api/              # chat.js(SSE解析) / sessions / kb / voice(webm→WAV)
@@ -148,13 +148,13 @@ cp .env.example .env
 **手动启动**：
 
 ```bash
-python -m uvicorn backend.main:app --reload --port 8000
+python -m uvicorn backend.main:app --reload --port 8100
 ```
 
 启动后验证：
 
-- 接口文档：http://127.0.0.1:8000/docs （可在线调试所有接口）
-- 健康检查：http://127.0.0.1:8000/api/health 应返回 `{"status":"ok"}`
+- 接口文档：http://127.0.0.1:8100/docs （可在线调试所有接口）
+- 健康检查：http://127.0.0.1:8100/api/health 应返回 `{"status":"ok"}`
 
 ### 2. 启动前端
 
@@ -164,7 +164,7 @@ npm install        # 首次
 npm run dev
 ```
 
-访问 http://localhost:5173 。开发期由 Vite 将 `/api` 请求代理到 8000 端口，
+访问 http://localhost:5173 。开发期由 Vite 将 `/api` 请求代理到 8100 端口，
 无需配置跨域。
 
 ### 3. 功能验证清单
@@ -185,16 +185,16 @@ npm run dev
 
 ```bash
 # 流式对话
-curl -N -X POST http://127.0.0.1:8000/api/chat/stream \
+curl -N -X POST http://127.0.0.1:8100/api/chat/stream \
   -H "Content-Type: application/json" \
   -d '{"message": "你好"}'
 
 # 上传文档到知识库
-curl -X POST http://127.0.0.1:8000/api/kb/长沙攻略/documents \
+curl -X POST http://127.0.0.1:8100/api/kb/长沙攻略/documents \
   -F "files=@./长沙旅游.txt"
 
 # 检索调试（不经 LLM）
-curl -X POST http://127.0.0.1:8000/api/kb/retrieve \
+curl -X POST http://127.0.0.1:8100/api/kb/retrieve \
   -H "Content-Type: application/json" \
   -d '{"query": "长沙美食", "top_k": 3}'
 ```

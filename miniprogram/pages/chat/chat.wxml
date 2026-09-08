@@ -1,0 +1,57 @@
+<view class="chat-page">
+  <!-- 连接状态提示 -->
+  <view wx:if="{{wsStatus}}" class="ws-status">
+    <text>{{wsStatus}}</text>
+    <text wx:if="{{showRetry}}" class="ws-retry" bindtap="_connect">重试</text>
+  </view>
+
+  <!-- 消息列表 -->
+  <scroll-view class="msg-list" scroll-y scroll-into-view="{{scrollInto}}" scroll-with-animation>
+    <view class="{{item.cls}}" wx:for="{{messages}}" wx:key="id" id="msg-{{item.id}}">
+      <!-- 头像 -->
+      <view class="avatar">{{item.avatarText}}</view>
+      <!-- 气泡 -->
+      <view class="bubble {{item.errorClass}}">
+        <!-- 消息正文：统一纯文本渲染 -->
+        <text class="plain" user-select>{{item.content}}</text>
+        <!-- 思考提示（仅 AI 流式且尚无内容时） -->
+        <view wx:if="{{item.showThinking}}" class="thinking">{{item.thinking}}</view>
+        <!-- 打字机光标（仅 AI 流式中） -->
+        <view wx:if="{{item.showCursor}}" class="cursor"></view>
+        <!-- 行程卡片摘要 -->
+        <view wx:if="{{item.summary}}" class="it-card" bindtap="openItinerary" data-index="{{index}}">
+          <view class="it-card-title">{{item.summary.title}}</view>
+          <view class="it-card-meta">
+            <text wx:if="{{item.summary.destination}}" class="tag">{{item.summary.destination}}</text>
+            <text wx:if="{{item.summary.dayCount}}" class="tag">{{item.summary.dayCount}}天</text>
+            <text wx:if="{{item.summary.budget}}" class="tag">{{item.summary.budget}}</text>
+          </view>
+          <view wx:if="{{item.summary.weatherSummary}}" class="it-card-weather">
+            <text class="tag">天气</text>{{item.summary.weatherSummary}}
+          </view>
+          <view class="it-card-more">查看详细行程 ›</view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{!messages.length}}" class="empty-state">
+      <view class="empty-icon">✈️</view>
+      <view>你好，我是 AI 旅行助手</view>
+      <view class="empty-sub">试试问：帮我规划一个长沙3日游行程</view>
+    </view>
+  </scroll-view>
+
+  <!-- 输入栏 -->
+  <view class="input-bar">
+    <input
+      class="input"
+      value="{{inputValue}}"
+      bindinput="onInput"
+      bindconfirm="sendMessage"
+      placeholder="问点啥？比如：帮我规划长沙3日游"
+      confirm-type="send"
+      disabled="{{busy}}"
+    />
+    <button class="send-btn" size="mini" bindtap="sendMessage" disabled="{{busy || !inputValue}}">发送</button>
+  </view>
+</view>

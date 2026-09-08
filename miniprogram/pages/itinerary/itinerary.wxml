@@ -1,0 +1,46 @@
+<view class="it-page" wx:if="{{it}}">
+  <!-- 行程概览 -->
+  <view class="it-head">
+    <view class="it-head-title">{{it.title}}</view>
+    <view class="it-head-meta">
+      <text wx:if="{{it.destination}}" class="meta-tag">📍 {{it.destination}}</text>
+      <text wx:if="{{it.dayCount}}" class="meta-tag">🗓 {{it.dayCount}}天</text>
+      <text wx:if="{{it.budget}}" class="meta-tag">💰 {{it.budget}}</text>
+    </view>
+    <view wx:if="{{it.weatherSummary}}" class="it-head-weather">
+      <text class="label">天气</text>{{it.weatherSummary}}
+    </view>
+  </view>
+
+  <!-- 每日行程 -->
+  <view class="day-card" wx:for="{{days}}" wx:key="day" wx:for-item="day">
+    <view class="day-head">
+      <view class="day-badge">Day {{day.day}}</view>
+      <view class="day-date" wx:if="{{day.date}}">{{day.date}}</view>
+      <view class="day-weather" wx:if="{{day.weather}}">{{day.weather}}</view>
+    </view>
+
+    <view class="slot" wx:for="{{day.slots}}" wx:key="label" wx:for-item="slot">
+      <view class="slot-label">{{slot.label}}</view>
+      <view class="slot-body">
+        <view wx:if="{{slot.activity}}" class="slot-activity">{{slot.activity}}</view>
+        <view wx:if="{{slot.description}}" class="slot-desc" user-select>{{slot.description}}</view>
+        <view class="slot-row">
+          <text wx:if="{{slot.location}}" class="row-item">📍 {{slot.location}}</text>
+          <text wx:if="{{slot.transport}}" class="row-item">🚌 {{slot.transport}}</text>
+        </view>
+        <view class="slot-row">
+          <text wx:if="{{slot.duration}}" class="row-item">⏱ {{slot.duration}}</text>
+          <text wx:if="{{slot.cost}}" class="row-item cost">💴 {{slot.cost}}</text>
+        </view>
+      </view>
+    </view>
+    <view wx:if="{{!day.slots.length}}" class="slot-empty">当日暂无详细安排</view>
+  </view>
+
+  <!-- 出行小贴士 -->
+  <view wx:if="{{tips.length}}" class="tips-card">
+    <view class="tips-title">💡 出行小贴士</view>
+    <view class="tip-item" wx:for="{{tips}}" wx:key="*this">• {{item}}</view>
+  </view>
+</view>

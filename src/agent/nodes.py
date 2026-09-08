@@ -1,4 +1,5 @@
 import json
+import concurrent.futures
 from typing import Dict, Any, List
 
 from src.config import Config
@@ -6,6 +7,7 @@ from src.llm.model_factory import ModelFactory
 from src.mcp.mcp_client import MCPClient
 from src.database.crud import log_mcp_call
 from src.utils.logger import setup_logger
+from src.utils.stream_bus import emit_token
 from src.agent.state import AgentState, update_state, add_mcp_result, increment_call_count, add_rag_result
 from src.agent.prompts import SYSTEM_PROMPT, TOOL_CALL_PROMPT, ANSWER_GENERATION_PROMPT
 from src.agent.memory import get_memory
@@ -342,21 +344,22 @@ def mcp_execution_node(state: AgentState) -> AgentState:
     new_state = increment_call_count(state)
     
     available_tools = set(MCPClient.get_registered_tools())
-    
-    for tool_call in state["tool_calls"]:
+
+    # 工具调用相互独立，并发执行（同一轮内最多 5 路），再按原顺序收集结果，
+    # 避免多个高德接口（天气/POI/美食/酒店/预算）串行累加 7~8 秒延迟
+    def _exec_one(tool_call: Dict[str, Any]) -> Dict[str, Any]:
         tool_name = tool_call.get("tool_name")
         method_name = tool_call.get("method_name")
         parameters = tool_call.get("parameters", {})
         
         if tool_name not in available_tools:
             logger.warning(f"LLM hallucinated non-existent tool: {tool_name}, skipping")
-            new_state = add_mcp_result(new_state, {
+            return {
                 "tool_name": tool_name,
                 "method_name": method_name,
                 "parameters": parameters,
                 "result": {"error": f"Tool '{tool_name}' does not exist. Available tools: {list(available_tools)}"},
-            })
-            continue
+            }
         
         logger.info(f"Executing MCP tool: {tool_name}.{method_name}, params: {parameters}")
         
@@ -367,23 +370,31 @@ def mcp_execution_node(state: AgentState) -> AgentState:
                 parameters=parameters,
                 session_id=state["session_id"],
             )
-            
             logger.info(f"MCP tool executed successfully: {tool_name}.{method_name}")
-            new_state = add_mcp_result(new_state, {
+            return {
                 "tool_name": tool_name,
                 "method_name": method_name,
                 "parameters": parameters,
                 "result": result,
-            })
-            
+            }
         except Exception as e:
             logger.error(f"MCP tool execution failed: {tool_name}.{method_name}: {str(e)}", exc_info=True)
-            new_state = add_mcp_result(new_state, {
+            return {
                 "tool_name": tool_name,
                 "method_name": method_name,
                 "parameters": parameters,
                 "result": {"error": str(e)},
-            })
+            }
+    
+    workers = min(len(state["tool_calls"]), 5)
+    if workers > 1:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+            executed_results = list(executor.map(_exec_one, state["tool_calls"]))
+    else:
+        executed_results = [_exec_one(tc) for tc in state["tool_calls"]]
+    
+    for r in executed_results:
+        new_state = add_mcp_result(new_state, r)
     
     new_state = update_state(new_state, tool_calls=[])
     
@@ -484,8 +495,21 @@ MCP工具执行结果：
     logger.info("Answer generation node called")
     
     try:
-        response = model.invoke(messages)
-        content = response.content or ""
+        # 真流式生成：增量文本边生成边经 stream_bus 实时推给上层
+        # （WebSocket token 事件），同时累积完整文本用于持久化。
+        # 兼容两种 chunk 形态：ChatGenerationChunk（.message.content）
+        # 与 AIMessage（.content）。
+        content_parts: List[str] = []
+        for chunk in model.stream(messages):
+            text = ""
+            if hasattr(chunk, "message") and hasattr(chunk.message, "content"):
+                text = chunk.message.content or ""
+            elif hasattr(chunk, "content"):
+                text = chunk.content or ""
+            if text:
+                content_parts.append(text)
+                emit_token(text)
+        content = "".join(content_parts)
         
         logger.info(f"Final answer generated: {content[:100]}...")
         

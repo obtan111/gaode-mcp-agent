@@ -168,6 +168,9 @@ class ModelFactory:
                 max_tokens=max_tokens,
                 api_key=api_key,
                 base_url="https://api.deepseek.com/v1",
+                # 关闭 v4-flash 思考模式：思维链会让输出 token 翻倍、延迟翻倍，
+                # 且会吃掉 max_tokens 预算导致正式回答被截断
+                model_kwargs={"thinking": {"type": "disabled"}},
             )
         except ImportError:
             # 降级使用 SimpleLLM
@@ -317,6 +320,8 @@ class SimpleLLM(BaseChatModel):
             "messages": formatted_messages,
             "temperature": self.temperature,
             "stream": False,
+            # 关闭 v4-flash 思考模式：思维链使输出 token 翻倍、延迟翻倍
+            "thinking": {"type": "disabled"},
         }
         
         if self.max_tokens is not None:
@@ -378,6 +383,8 @@ class SimpleLLM(BaseChatModel):
             "messages": formatted_messages,
             "temperature": self.temperature,
             "stream": True,
+            # 关闭 v4-flash 思考模式，与 _generate 保持一致
+            "thinking": {"type": "disabled"},
         }
         
         if self.max_tokens is not None:
@@ -392,6 +399,9 @@ class SimpleLLM(BaseChatModel):
         )
         response.raise_for_status()
 
+        from langchain_core.outputs import ChatGenerationChunk
+        from langchain_core.messages import AIMessageChunk
+
         for line in response.iter_lines():
             if line:
                 try:
@@ -399,7 +409,7 @@ class SimpleLLM(BaseChatModel):
                     if data.get("choices"):
                         content = data["choices"][0]["delta"].get("content", "")
                         if content:
-                            yield AIMessage(content=content)
+                            yield ChatGenerationChunk(message=AIMessageChunk(content=content))
                 except (json.JSONDecodeError, ValueError):
                     continue
 

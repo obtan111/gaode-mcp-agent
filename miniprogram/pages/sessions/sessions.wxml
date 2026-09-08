@@ -1,0 +1,37 @@
+<view class="sessions-page">
+  <view class="sessions-list">
+    <view
+      wx:for="{{sessions}}"
+      wx:key="id"
+      class="session-item"
+      bindtap="openSession"
+      bindlongpress="onLongPress"
+      data-id="{{item.id}}"
+    >
+      <view class="session-body">
+        <view class="session-title">{{item.title}}</view>
+        <view wx:if="{{item.preview}}" class="session-preview">{{item.preview}}</view>
+      </view>
+      <view class="session-time">{{item.timeText}}</view>
+    </view>
+
+    <view wx:if="{{loading}}" class="empty-state">
+      <view class="empty-icon">⏳</view>
+      <view>加载中...</view>
+    </view>
+    <view wx:elif="{{errorMsg}}" class="empty-state">
+      <view class="empty-icon">⚠️</view>
+      <view>{{errorMsg}}</view>
+      <view class="empty-sub">请先运行 run_backend.bat 启动后端</view>
+    </view>
+    <view wx:elif="{{!sessions.length}}" class="empty-state">
+      <view class="empty-icon">💬</view>
+      <view>还没有历史会话</view>
+      <view class="empty-sub">去「对话」页开始第一次旅行规划吧</view>
+    </view>
+  </view>
+
+  <view class="new-btn-wrap">
+    <button class="btn-primary new-btn" bindtap="newSession">＋ 新建对话</button>
+  </view>
+</view>

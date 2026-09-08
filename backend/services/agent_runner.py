@@ -17,12 +17,14 @@ from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from src.agent.state import init_state
 from src.utils.logger import setup_logger
+from src.utils.stream_bus import emitted_chars as _bus_emitted_chars, reset as _bus_reset
 
 # 延迟导入：保持模块导入轻量，依赖懒加载单例
 Event = Tuple[str, Dict[str, Any]]
 
 HISTORY_WINDOW = 20   # 进入 LLM 上下文的历史消息条数上限
 PSEUDO_CHUNK = 24     # 回退伪流式时的切片长度（字符）
+TOKEN_INTERVAL = 0.03 # 伪流式每块间隔（秒），保证前端打字机逐字节奏
 # 节点内部捕获异常后写入 final_answer 的道歉语前缀（见 src/agent/nodes.py），
 # 用于识别"工作流正常结束但实际内部出错"的情况
 APOLOGY_PREFIX = "抱歉，处理您的请求时出错"
@@ -196,7 +198,12 @@ def iter_chat_events(
       崩溃并被节点吞掉，因此该模式下若检测到失败会自动降级重跑一次。
     """
     started = time.time()
+    # 每轮清零 token 总线计数，供下方"是否真流式"判定
+    _bus_reset()
     yield "start", {"session_id": session_id}
+    # 初始进度提示：LangGraph updates 模式的 status 是节点完成才发出，
+    # 首个节点（llm_inference）运行期间前端需要一条即时提示，避免等待期无反馈
+    yield "status", {"node": "llm_inference"}
 
     use_multi = (
         not _force_updates
@@ -277,10 +284,13 @@ def iter_chat_events(
             raise stream_error
 
         answer = (final_answer or "").strip()
-        if not streamed_chars and answer:
+        if not streamed_chars and not _bus_emitted_chars() and answer:
             # 真实 token 流不可用时切片推送完整回答，前端只需面对一种 token 事件
             for i in range(0, len(answer), PSEUDO_CHUNK):
                 yield "token", {"delta": answer[i : i + PSEUDO_CHUNK]}
+                # 节奏控制：让 token 分批到达，前端打字机才能逐字显示。
+                # 本生成器运行在 asyncio.to_thread 线程，sleep 不阻塞事件循环。
+                time.sleep(TOKEN_INTERVAL)
         if not answer and not streamed_chars:
             answer = "抱歉，未能生成有效回答，请重试。"
 

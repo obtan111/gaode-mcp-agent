@@ -1,0 +1,202 @@
+.chat-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #F4F6FB;
+}
+
+/* 连接状态条 */
+.ws-status {
+  background: #FFF7E6;
+  color: #B8860B;
+  font-size: 24rpx;
+  padding: 10rpx 24rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.ws-retry {
+  color: #3D6BFF;
+  margin-left: 16rpx;
+  text-decoration: underline;
+}
+
+/* 消息列表：flex:1 必须配 min-height:0，否则 scroll-view 高度被内容撑开导致消息区渲染异常 */
+.msg-list {
+  flex: 1;
+  min-height: 0;
+  padding: 24rpx 24rpx 32rpx;
+  box-sizing: border-box;
+}
+
+.msg-item {
+  display: flex;
+  margin-bottom: 28rpx;
+  align-items: flex-start;
+}
+
+.msg-item .avatar {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  flex-shrink: 0;
+  font-size: 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.msg-item.user {
+  flex-direction: row-reverse;
+}
+.msg-item.user .avatar {
+  background: #3D6BFF;
+  color: #fff;
+}
+.msg-item.assistant .avatar {
+  background: #E3EBFF;
+  color: #3D6BFF;
+}
+
+.bubble {
+  max-width: 78%;
+  margin: 0 20rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 20rpx;
+  font-size: 28rpx;
+  line-height: 1.7;
+  word-break: break-word;
+  position: relative;
+}
+.msg-item.user .bubble {
+  background: #3D6BFF;
+  color: #fff;
+  border-top-right-radius: 6rpx;
+}
+.msg-item.assistant .bubble {
+  background: #FFFFFF;
+  color: #1F2329;
+  border-top-left-radius: 6rpx;
+  box-shadow: 0 2rpx 8rpx rgba(31, 35, 41, 0.06);
+}
+.bubble-error {
+  border: 2rpx solid #FFD6D6;
+  color: #C0392B;
+}
+
+.plain {
+  white-space: pre-wrap;
+}
+
+/* 处理中提示（status 事件驱动） */
+.thinking {
+  color: #9AA0A6;
+  font-size: 26rpx;
+  display: flex;
+  align-items: center;
+}
+.thinking::after {
+  content: '';
+  width: 4rpx;
+  height: 28rpx;
+  background: #9AA0A6;
+  margin-left: 8rpx;
+  animation: think-blink 1s infinite;
+}
+@keyframes think-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* 打字机光标 */
+.cursor {
+  display: inline-block;
+  width: 4rpx;
+  height: 32rpx;
+  background: #3D6BFF;
+  margin-left: 4rpx;
+  vertical-align: -6rpx;
+  animation: blink 1s step-start infinite;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* 行程卡片摘要 */
+.it-card {
+  margin-top: 18rpx;
+  border: 2rpx solid #D6E2FF;
+  border-radius: 16rpx;
+  background: #F6F9FF;
+  padding: 20rpx;
+}
+.it-card-title {
+  font-weight: 600;
+  font-size: 30rpx;
+  color: #2B4FD8;
+  margin-bottom: 12rpx;
+}
+.it-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 8rpx;
+}
+.tag {
+  display: inline-block;
+  background: #E3EBFF;
+  color: #3D6BFF;
+  border-radius: 8rpx;
+  font-size: 22rpx;
+  padding: 4rpx 14rpx;
+  margin-right: 10rpx;
+}
+.it-card-weather {
+  font-size: 24rpx;
+  color: #5A6068;
+  margin-bottom: 10rpx;
+}
+.it-card-more {
+  text-align: right;
+  color: #3D6BFF;
+  font-size: 24rpx;
+  margin-top: 6rpx;
+}
+
+.empty-sub {
+  color: #A0A6AD;
+  font-size: 24rpx;
+  margin-top: 12rpx;
+}
+
+/* 输入栏 */
+.input-bar {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 20rpx calc(16rpx + env(safe-area-inset-bottom));
+  background: #FFFFFF;
+  border-top: 2rpx solid #EEF0F4;
+}
+.input {
+  flex: 1;
+  height: 80rpx;
+  background: #F4F6FB;
+  border-radius: 40rpx;
+  padding: 0 32rpx;
+  font-size: 28rpx;
+}
+.send-btn {
+  margin-left: 16rpx;
+  background: #3D6BFF;
+  color: #fff;
+  border-radius: 40rpx;
+  font-size: 26rpx;
+  min-width: 120rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  padding: 0 32rpx;
+}
+.send-btn[disabled] {
+  background: #A9C0FF;
+  color: #fff;
+}

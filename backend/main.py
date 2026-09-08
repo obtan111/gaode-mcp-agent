@@ -1,7 +1,7 @@
 """FastAPI 后端入口：把 src/ 下已有的智能体与 RAG 能力包装成 Web 服务。
 
 启动（在项目根目录执行）：
-    python -m uvicorn backend.main:app --reload --port 8000
+    python -m uvicorn backend.main:app --reload --port 8100
 
 接口文档：
     http://127.0.0.1:8000/docs

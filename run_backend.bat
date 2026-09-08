@@ -5,7 +5,7 @@ title Private Assistant - FastAPI Backend
 REM ============================================================
 REM  FastAPI backend launcher (ASCII-only to avoid codepage bugs)
 REM  Usage:
-REM    run_backend.bat          start dev server on port 8000
+REM    run_backend.bat          start dev server on port 8100
 REM    run_backend.bat check    verify python/deps then exit
 REM ============================================================
 
@@ -42,5 +42,5 @@ if "%~1"=="check" (
 echo Starting FastAPI backend...
 echo API docs: http://127.0.0.1:8000/docs
 echo Press Ctrl+C to stop.
-"%PY%" -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
+"%PY%" -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8100
 pause

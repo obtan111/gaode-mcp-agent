@@ -1,0 +1,33 @@
+{
+  "pages": [
+    "pages/chat/chat",
+    "pages/sessions/sessions",
+    "pages/itinerary/itinerary"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#3D6BFF",
+    "navigationBarTitleText": "AI 旅行助手",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#F4F6FB",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "color": "#9AA0A6",
+    "selectedColor": "#3D6BFF",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/chat/chat",
+        "text": "对话"
+      },
+      {
+        "pagePath": "pages/sessions/sessions",
+        "text": "会话"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents"
+}
