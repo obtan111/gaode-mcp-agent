@@ -18,6 +18,10 @@
         <view wx:if="{{item.showThinking}}" class="thinking">{{item.thinking}}</view>
         <!-- 打字机光标（仅 AI 流式中） -->
         <view wx:if="{{item.showCursor}}" class="cursor"></view>
+        <!-- 语音播报（仅 AI 完成态） -->
+        <view wx:if="{{item.canVoice}}" class="voice-btn" catchtap="playVoice" data-index="{{index}}">
+          <text>{{item.voiceIcon}}</text>
+        </view>
         <!-- 行程卡片摘要 -->
         <view wx:if="{{item.summary}}" class="it-card" bindtap="openItinerary" data-index="{{index}}">
           <view class="it-card-title">{{item.summary.title}}</view>
@@ -43,6 +47,11 @@
 
   <!-- 输入栏 -->
   <view class="input-bar">
+    <view class="rec-btn {{recCls}}"
+          bindtouchstart="startRecord" bindtouchend="stopRecord" bindtouchcancel="stopRecord">
+      <text class="rec-icon">🎤</text>
+      <text class="rec-tip">{{recTip}}</text>
+    </view>
     <input
       class="input"
       value="{{inputValue}}"
@@ -54,4 +63,5 @@
     />
     <button class="send-btn" size="mini" bindtap="sendMessage" disabled="{{busy || !inputValue}}">发送</button>
   </view>
+  <view wx:if="{{recording}}" class="rec-status">正在录音…松开结束</view>
 </view>

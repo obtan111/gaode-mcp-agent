@@ -25,7 +25,10 @@ Page({
     wsStatus: '',
     showRetry: false,
     busy: false,
-    scrollInto: ''
+    scrollInto: '',
+    recording: false,
+    recCls: '',
+    recTip: '按住说话'
   },
 
   onLoad(options) {
@@ -36,6 +39,8 @@ Page({
     this._flushTimer = null
     this._pendingDelta = ''
     this._scrollKey = ''
+    this._initRecorder()
+    this._initAudio()
     ws.resetHandlers()
     this._bindWS()
     console.log('[chat] onLoad done, data.messages=', this.data.messages.length)
@@ -190,8 +195,153 @@ Page({
       itinerary: null,
       summary: null,
       error: false,
-      errorClass: ''
+      errorClass: '',
+      // 语音播报（渲染层预计算：canVoice 控制按钮显隐，voiceIcon 控制图标）
+      canVoice: false,
+      playing: '',
+      voiceIcon: '🔊'
     }
+  },
+
+  // ---------- 语音输入（录音 → ASR） ----------
+
+  _initRecorder() {
+    this._recorder = wx.getRecorderManager()
+    this._recorder.onStop((res) => {
+      if (!res || !res.tempFilePath) return
+      wx.showLoading({ title: '识别中...', mask: true })
+      api.asr(res.tempFilePath)
+        .then((data) => {
+          const text = (((data || {}).text) || '').trim()
+          if (text) {
+            this.setData({ inputValue: text })
+          } else {
+            wx.showToast({ title: '未识别到内容', icon: 'none' })
+          }
+        })
+        .catch((err) => {
+          wx.showToast({ title: (err && err.message) || '识别失败', icon: 'none' })
+        })
+        .finally(() => wx.hideLoading())
+    })
+    this._recorder.onError((err) => {
+      this.setData({ recording: false, recCls: '' })
+      wx.showToast({ title: '录音失败', icon: 'none' })
+      console.warn('[chat] recorder error', err)
+    })
+  },
+
+  startRecord() {
+    if (this.data.recording || this.data.busy) return
+    wx.getSetting({
+      success: (res) => {
+        const auth = res.authSetting && res.authSetting['scope.record']
+        if (auth === false) {
+          wx.showModal({
+            title: '需要麦克风权限',
+            content: '请在设置中允许使用麦克风',
+            confirmText: '去设置',
+            success: (r) => { if (r.confirm) wx.openSetting() }
+          })
+          return
+        }
+        if (auth === undefined) {
+          wx.authorize({
+            scope: 'scope.record',
+            success: () => this._beginRecord(),
+            fail: () => wx.showToast({ title: '未授权麦克风', icon: 'none' })
+          })
+          return
+        }
+        this._beginRecord()
+      }
+    })
+  },
+
+  _beginRecord() {
+    this.setData({ recording: true, recCls: 'recording', recTip: '松开结束' })
+    this._recorder.start({
+      format: 'mp3',
+      duration: 60000,
+      sampleRate: 16000,
+      numberOfChannels: 1,
+      encodeBitRate: 48000
+    })
+  },
+
+  stopRecord() {
+    if (!this.data.recording) return
+    this.setData({ recording: false, recCls: '', recTip: '按住说话' })
+    this._recorder.stop()
+  },
+
+  // ---------- 语音播报（按需 TTS） ----------
+
+  _initAudio() {
+    this._audioCtx = wx.createInnerAudioContext()
+    this._audioCtx.onEnded(() => this._clearVoiceState())
+    this._audioCtx.onError(() => {
+      this._clearVoiceState()
+      wx.showToast({ title: '播放失败', icon: 'none' })
+    })
+  },
+
+  _setVoiceState(index, playing, icon) {
+    this.setData({
+      ['messages[' + index + '].playing']: playing,
+      ['messages[' + index + '].voiceIcon']: icon
+    })
+  },
+
+  _clearVoiceState() {
+    const messages = this.data.messages
+    for (let i = 0; i < messages.length; i++) {
+      if (messages[i].playing) {
+        this._setVoiceState(i, '', '🔊')
+        break
+      }
+    }
+  },
+
+  playVoice(e) {
+    const index = e.currentTarget.dataset.index
+    const msg = this.data.messages[index]
+    if (!msg || msg.role !== 'assistant' || !msg.content) return
+    if (msg.playing === 'playing') {
+      // 再次点击：停止播放
+      if (this._audioCtx) this._audioCtx.stop()
+      this._setVoiceState(index, '', '🔊')
+      return
+    }
+    if (msg.playing === 'loading') return
+    this._setVoiceState(index, 'loading', '⏳')
+    api.tts(msg.content)
+      .then((res) => {
+        const dataUri = (res && res.audio) || ''
+        const comma = dataUri.indexOf(',')
+        if (comma < 0) throw new Error('无音频数据')
+        const base64 = dataUri.slice(comma + 1)
+        const mime = (dataUri.slice(0, comma).split(';')[0] || '').split(':')[1] || ''
+        const ext = mime.indexOf('mpeg') >= 0 ? 'mp3' : 'wav'
+        const filePath = wx.env.USER_DATA_PATH + '/tts_' + Date.now() + '.' + ext
+        wx.getFileSystemManager().writeFile({
+          filePath,
+          data: wx.base64ToArrayBuffer(base64),
+          success: () => {
+            this._audioCtx.src = filePath
+            this._audioCtx.play()
+            this._setVoiceState(index, 'playing', '⏸')
+          },
+          fail: () => {
+            this._setVoiceState(index, '', '🔊')
+            wx.showToast({ title: '音频写入失败', icon: 'none' })
+          }
+        })
+      })
+      .catch((err) => {
+        this._setVoiceState(index, '', '🔊')
+        wx.showToast({ title: (err && err.message) || '语音合成失败', icon: 'none' })
+      })
   },
 
   _appendDelta(delta) {
@@ -239,6 +389,7 @@ Page({
     last.showThinking = false
     last.showCursor = false
     last.content = answer || last.content || '（空回复）'
+    last.canVoice = !!last.content
     // 取本轮用户问题辅助推断行程目的地
     let userMessage = ''
     for (let i = messages.length - 2; i >= 0; i--) {
@@ -282,6 +433,7 @@ Page({
     if (!last.content) {
       last.content = '已生成行程卡片，点击上方卡片查看详细行程'
     }
+    last.canVoice = !!last.content
     try {
       last.nodes = markdown.render(last.content)
     } catch (e) {
@@ -335,6 +487,7 @@ Page({
             if (stripped) msg.content = stripped
           }
           msg.nodes = markdown.render(msg.content)
+          msg.canVoice = !!msg.content
         }
         messages.push(msg)
       }

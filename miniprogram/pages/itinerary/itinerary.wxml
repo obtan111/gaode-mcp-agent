@@ -12,6 +12,26 @@
     </view>
   </view>
 
+  <!-- 地图可视化（按天着色 markers + 路线连线 + 天切换） -->
+  <view wx:if="{{mapReady}}" class="map-card">
+    <view class="day-tabs">
+      <view wx:for="{{tabs}}" wx:key="day" class="{{item.cls}}" data-day="{{item.day}}" bindtap="switchDay">{{item.label}}</view>
+    </view>
+    <map
+      class="trip-map"
+      latitude="{{center.latitude}}"
+      longitude="{{center.longitude}}"
+      markers="{{markers}}"
+      polylines="{{polylines}}"
+      include-points="{{includePoints}}"
+      bindmarkertap="onMarkerTap"
+      enable-zoom
+      enable-scroll
+      show-location
+    />
+    <view class="map-hint">彩色标记 = 每天游玩地点，点标记看详情；连线 = 当天游览顺序</view>
+  </view>
+
   <!-- 每日行程 -->
   <view class="day-card" wx:for="{{days}}" wx:key="day" wx:for-item="day">
     <view class="day-head">

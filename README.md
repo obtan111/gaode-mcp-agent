@@ -20,7 +20,7 @@
 - ✅ **多模态输入**：图片上传（缩略图随消息展示）、语音输入（浏览器录音自动转 WAV 后识别）
 - ✅ **语音播报**：每条助手回答可一键 TTS 播放（按消息缓存）
 - ✅ **会话管理**：多会话、历史持久化、重命名、删除、Markdown 导出
-- ✅ **微信小程序（MVP）**：WebSocket 流式打字机对话、会话历史列表/删除、行程卡片（见「微信小程序」章节）
+- ✅ **微信小程序（MVP）**：WebSocket 流式打字机对话、语音输入/播报、会话历史列表/删除、行程卡片+地图（见「微信小程序」章节）
 
 ### 知识库
 - ✅ 文档上传向量化（txt / md / pdf / json / csv，≤50MB）
@@ -74,7 +74,7 @@
 │       ├── App.vue           # 根组件（状态管理）
 │       ├── api/              # chat.js(SSE解析) / sessions / kb / voice(webm→WAV)
 │       └── components/       # Sidebar / ChatWindow / MessageItem / KbPanel
-├── miniprogram/              # 微信小程序（原生，WebSocket 对话 + 会话 + 行程卡片）
+├── miniprogram/              # 微信小程序（原生，WS 流式对话 + 语音 + 会话 + 行程地图卡片）
 ├── src/                      # 业务层（与 Web 框架解耦）
 │   ├── agent/                # LangGraph 工作流（graph/nodes/state/memory）
 │   ├── config/settings.py    # 配置类（环境变量驱动）
@@ -217,8 +217,12 @@ curl -X POST http://127.0.0.1:8100/api/kb/retrieve \
 
 - **对话**：WebSocket 流式打字机（`wx.connectSocket` → `/api/chat/ws`），
   带节点级进度提示（正在理解需求 / 查询天气和景点 / 规划行程路线）；
+- **语音输入**：长按录音（`wx.getRecorderManager`）→ `POST /api/voice/asr` 识别填入输入框；
+- **语音播报**：助手完成态消息一键 `POST /api/voice/tts` 播放（按需合成，复用后端 TTS）；
 - **会话历史**：列表 / 进入 / 长按删除；
-- **行程卡片**：回答中检测到行程计划时展示结构化卡片（`itinerary` 事件）。
+- **行程卡片**：回答中检测到行程计划时展示结构化卡片（`itinerary` 事件）；
+- **行程地图**：行程详情页集成地图，按天着色 markers + 当天路线连线 + 天切换，
+  点标记查看地点详情（坐标经后端 `POST /api/geo/coords` 代理高德，密钥不暴露小程序）。
 
 ### 运行
 
@@ -235,7 +239,6 @@ curl -X POST http://127.0.0.1:8100/api/kb/retrieve \
 5. `miniprogram/utils/config.js` 顶部可切换地址：`127.0.0.1`（模拟器）/ 局域网 IP（真机预览）。
 
 > 开发版/预览版不校验合法域名（支持 `ws://`）；上传体验版需公网部署 + WSS + 域名白名单。
-> 地图与语音能力规划在第二版。
 
 ---
 

@@ -200,3 +200,61 @@
   background: #A9C0FF;
   color: #fff;
 }
+
+/* 语音播报按钮（AI 完成态消息） */
+.voice-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  background: #E3EBFF;
+  margin-top: 12rpx;
+  font-size: 28rpx;
+}
+.voice-btn:active {
+  opacity: 0.7;
+}
+
+/* 录音按钮（长按说话） */
+.rec-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  width: 110rpx;
+  height: 80rpx;
+  margin-right: 12rpx;
+  border-radius: 40rpx;
+  background: #F4F6FB;
+  color: #3D6BFF;
+}
+.rec-btn.recording {
+  background: #FF6B5E;
+  color: #fff;
+}
+.rec-icon {
+  font-size: 32rpx;
+  line-height: 1.2;
+}
+.rec-tip {
+  font-size: 18rpx;
+  line-height: 1.2;
+  color: inherit;
+}
+
+/* 录音中浮动提示 */
+.rec-status {
+  position: fixed;
+  left: 50%;
+  bottom: 160rpx;
+  transform: translateX(-50%);
+  background: rgba(31, 35, 41, 0.85);
+  color: #fff;
+  font-size: 26rpx;
+  padding: 16rpx 36rpx;
+  border-radius: 40rpx;
+  z-index: 10;
+  white-space: nowrap;
+}
