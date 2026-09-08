@@ -133,8 +133,15 @@ class SpeechRecognition:
                 try:
                     error_detail = e.response.json()
                     logger.error(f"ASR API response error: {json.dumps(error_detail, ensure_ascii=False)}")
-                except:
+                    raise ServiceError(
+                        f"ASR API request failed: {str(e)}, detail: "
+                        f"{json.dumps(error_detail, ensure_ascii=False)[:300]}"
+                    )
+                except Exception:
                     logger.error(f"ASR API response text: {e.response.text[:500]}")
+                    raise ServiceError(
+                        f"ASR API request failed: {str(e)}, body: {e.response.text[:300]}"
+                    )
             raise ServiceError(f"ASR API request failed: {str(e)}")
 
         result = response.json()

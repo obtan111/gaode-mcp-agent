@@ -260,12 +260,13 @@ Page({
 
   _beginRecord() {
     this.setData({ recording: true, recCls: 'recording', recTip: '松开结束' })
+    // 用 wav（PCM）而非 mp3：微信 getRecorderManager 的 mp3 编码在部分真机上
+    // 不标准，智谱 ASR 会返回 400 Bad Request；wav 16k/单声道最兼容
     this._recorder.start({
-      format: 'mp3',
+      format: 'wav',
       duration: 60000,
       sampleRate: 16000,
-      numberOfChannels: 1,
-      encodeBitRate: 48000
+      numberOfChannels: 1
     })
   },
 
