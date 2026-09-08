@@ -233,6 +233,12 @@ Page({
 
   startRecord() {
     if (this.data.recording || this.data.busy) return
+    // 开发者工具模拟器无法调用真实麦克风，给出明确提示而非静默失败
+    const sys = wx.getSystemInfoSync()
+    if (sys && sys.platform === 'devtools') {
+      wx.showToast({ title: '模拟器不支持录音，请用真机预览', icon: 'none' })
+      return
+    }
     wx.getSetting({
       success: (res) => {
         const auth = res.authSetting && res.authSetting['scope.record']
