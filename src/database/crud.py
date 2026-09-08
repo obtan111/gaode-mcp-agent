@@ -1,6 +1,8 @@
 import json
 import math
 import hashlib
+import threading
+import time
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -15,6 +17,40 @@ logger = setup_logger("crud")
 
 # 缓存数据库列存在性检查结果，避免反复查询
 _content_hash_column_exists: Optional[bool] = None
+
+# 文档全量缓存：向量检索需先拉取全部文档再客户端算相似度，
+# 每次消息都全量拉取（实测 3~4s）是 RAG 检索的主要开销。
+# 缓存 key 为 kb_name（None 表示全库），10 分钟内复用。
+_docs_cache: Dict[str, tuple] = {}          # {kb_key: (docs, fetched_at)}
+_docs_cache_lock = threading.Lock()
+_DOCS_CACHE_TTL = 600.0                     # 10 分钟；知识库更新后重启进程刷新
+
+
+def _load_all_documents_cached(kb_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    """按知识库拉取全部文档，带进程内缓存（TTL 10 分钟）。
+
+    线程安全：并发首次加载时只查一次库，其余线程等待锁后复用。
+    """
+    key = kb_name or ""
+    now = time.time()
+    with _docs_cache_lock:
+        cached = _docs_cache.get(key)
+        if cached and now - cached[1] < _DOCS_CACHE_TTL:
+            return cached[0]
+
+    client = get_supabase_client()
+
+    def search_func(sb_client):
+        query = sb_client.table("documents").select("*")
+        if kb_name:
+            query = query.eq("kb_name", kb_name)
+        result = query.execute()
+        return result.data
+
+    all_docs = client.execute_with_client(search_func)
+    with _docs_cache_lock:
+        _docs_cache[key] = (all_docs, time.time())
+    return all_docs
 
 
 def _check_content_hash_column() -> bool:
@@ -246,18 +282,10 @@ def search_documents_by_vector(
     similarity_threshold: float = 0.3,
     kb_name: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    client = get_supabase_client()
     logger.info(f"Searching documents by vector, limit: {limit}, kb_name: {kb_name}")
 
-    def search_func(sb_client):
-        query = sb_client.table("documents").select("*")
-        if kb_name:
-            query = query.eq("kb_name", kb_name)
-        result = query.execute()
-        return result.data
-
     try:
-        all_docs = client.execute_with_client(search_func)
+        all_docs = _load_all_documents_cached(kb_name)
         logger.info(f"Loaded {len(all_docs)} documents for vector search")
 
         scored_docs = []

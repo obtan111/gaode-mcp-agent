@@ -20,6 +20,7 @@
 - ✅ **多模态输入**：图片上传（缩略图随消息展示）、语音输入（浏览器录音自动转 WAV 后识别）
 - ✅ **语音播报**：每条助手回答可一键 TTS 播放（按消息缓存）
 - ✅ **会话管理**：多会话、历史持久化、重命名、删除、Markdown 导出
+- ✅ **微信小程序（MVP）**：WebSocket 流式打字机对话、会话历史列表/删除、行程卡片（见「微信小程序」章节）
 
 ### 知识库
 - ✅ 文档上传向量化（txt / md / pdf / json / csv，≤50MB）
@@ -38,7 +39,10 @@
 │ 聊天/会话/知识库 │  /api → 8100 │ routers/schemas/    │               │ / MCP / CRUD     │
 └────────────────┘              │ services            │               └──────────────────┘
                                 └─────────────────────┘
-                                │
+┌────────────────┐   WS(微信)    │       ▲
+│ 微信小程序 MVP  │ ───────────▶ │  /api/chat/ws       │               └──────────────────┘
+│ (miniprogram/) │  流式对话     │  token 事件流        │
+└────────────────┘              │                     │
                                 ▼
                         Supabase (PostgreSQL + pgvector)
 ```
@@ -48,7 +52,9 @@
 - **业务层独立**：`src/` 下的工作流/检索/工具代码不感知 Web 框架，可被任何入口复用；
 - **会话无状态化**：历史消息每次从数据库加载，后端不存内存态（重启不丢、可水平扩展）；
 - **流式协议统一**：前端只面对 `start/status/token/tts/done/error` 六种事件，
-  伪流与真流的切换是后端内部实现细节（见「流式模式」）。
+  伪流与真流的切换是后端内部实现细节（见「流式模式」）；
+- **多端入口**：Vue 3 前端走 HTTP/SSE，微信小程序走 WebSocket（`/api/chat/ws`），
+  复用同一事件协议（另加 `itinerary` 行程事件）。
 
 ---
 
@@ -60,7 +66,7 @@
 │   ├── main.py               # 入口（CORS、lifespan 预热、路由注册）
 │   ├── core/deps.py          # 重型组件懒加载单例（import 零副作用）
 │   ├── schemas/              # pydantic 请求/响应模型
-│   ├── routers/              # chat(SSE) / sessions / kb / voice 路由
+│   ├── routers/              # chat(SSE/WS) / sessions / kb / voice 路由
 │   └── services/agent_runner.py  # 会话服务层（事件流桥接 + 持久化）
 ├── frontend/                 # Vue 3 前端（Vite）
 │   ├── vite.config.js        # 开发代理 /api → 127.0.0.1:8100
@@ -68,14 +74,15 @@
 │       ├── App.vue           # 根组件（状态管理）
 │       ├── api/              # chat.js(SSE解析) / sessions / kb / voice(webm→WAV)
 │       └── components/       # Sidebar / ChatWindow / MessageItem / KbPanel
+├── miniprogram/              # 微信小程序（原生，WebSocket 对话 + 会话 + 行程卡片）
 ├── src/                      # 业务层（与 Web 框架解耦）
 │   ├── agent/                # LangGraph 工作流（graph/nodes/state/memory）
 │   ├── config/settings.py    # 配置类（环境变量驱动）
-│   ├── database/             # Supabase 客户端 + CRUD
+│   ├── database/             # Supabase 客户端 + CRUD（文档全量缓存）
 │   ├── llm/                  # 模型工厂 / 嵌入 / 语音（ASR+TTS）
 │   ├── mcp/                  # 工具注册与各 MCP 工具实现
 │   ├── rag/                  # 文档解析 / 切分 / 混合检索管道
-│   └── utils/                # 日志 / 重试 / 异常 / 导出
+│   └── utils/                # 日志 / 重试 / 异常 / 导出 / token 流总线
 ├── scripts/                  # SQL 初始化与迁移脚本
 ├── knowledge/                # 知识库源文档（结构化 Markdown，入库后向量化）
 ├── tests/                    # pytest 测试
@@ -204,6 +211,34 @@ curl -X POST http://127.0.0.1:8100/api/kb/retrieve \
 
 ---
 
+## 微信小程序（MVP）
+
+原生微信小程序客户端，位于 `miniprogram/`，复用后端同一事件协议：
+
+- **对话**：WebSocket 流式打字机（`wx.connectSocket` → `/api/chat/ws`），
+  带节点级进度提示（正在理解需求 / 查询天气和景点 / 规划行程路线）；
+- **会话历史**：列表 / 进入 / 长按删除；
+- **行程卡片**：回答中检测到行程计划时展示结构化卡片（`itinerary` 事件）。
+
+### 运行
+
+1. 微信开发者工具 → 导入项目 → 选择 `miniprogram/` 目录（AppID 在 `project.config.json`）；
+2. 后端需监听 `0.0.0.0` 供手机访问，可双击 `start_backend_lan.bat`（局域网启动）或：
+   ```bash
+   python -m uvicorn backend.main:app --host 0.0.0.0 --port 8100
+   ```
+3. 首次真机预览前放行防火墙 8100 入站（管理员 PowerShell）：
+   ```
+   netsh advfirewall firewall add rule name="AI_Travel_Backend_8100" dir=in action=allow protocol=TCP localport=8100
+   ```
+4. 手机与电脑连接同一 WiFi，开发者工具点「预览」扫码；
+5. `miniprogram/utils/config.js` 顶部可切换地址：`127.0.0.1`（模拟器）/ 局域网 IP（真机预览）。
+
+> 开发版/预览版不校验合法域名（支持 `ws://`）；上传体验版需公网部署 + WSS + 域名白名单。
+> 地图与语音能力规划在第二版。
+
+---
+
 ## Docker 部署
 
 ### 本地/服务器一键部署
@@ -273,6 +308,7 @@ docker compose up -d --build       # 更新代码后重建
 | ---- | ---- | ---- |
 | POST | `/api/chat` | 一次性完整回答（JSON，非流式兜底） |
 | POST | `/api/chat/stream` | **SSE 流式回答（推荐）** |
+| WS | `/api/chat/ws` | **WebSocket 流式对话（小程序/移动端）** |
 | GET | `/api/sessions` | 会话列表（`include_messages=true` 可带消息体） |
 | POST | `/api/sessions` | 新建会话 |
 | GET | `/api/sessions/{id}` | 会话详情（含历史消息） |
@@ -314,21 +350,49 @@ docker compose up -d --build       # 更新代码后重建
 }
 ```
 
+### WebSocket 协议（`/api/chat/ws`）
+
+客户端发往服务端（JSON）：
+
+```json
+{"action": "chat", "message": "用户消息", "session_id": null, "model_type": "deepseek", "tts": false}
+{"action": "ping"}
+```
+
+服务端发往客户端（`{"event": ..., "data": ...}`，事件定义同 SSE 协议）：
+
+| 事件 | 数据字段 | 含义 |
+| ---- | ---- | ---- |
+| `start` | `session_id` | 会话就绪（空 ID 自动新建） |
+| `status` | `node` | 节点切换（含初始进度提示） |
+| `token` | `delta` | 增量回答文本（真实流式） |
+| `itinerary` | 行程 JSON | 回答中检测到行程计划时额外发出（卡片展示用） |
+| `done` | `session_id, answer, elapsed_ms` | 生成完成 |
+| `tts` | `audio` | 语音 data URI（请求 `tts: true` 时） |
+| `error` | `message` | 出错信息 |
+
+> 一条连接同一时刻只处理一个问答，上一条未结束时再发 `chat` 会收到 `error` 事件。
+> 真机预览注意：手机与电脑需同一 WiFi、后端监听 `0.0.0.0`、防火墙放行 8100 入站
+> （见「微信小程序」章节）。
+
 ---
 
 ## 流式模式
 
-由环境变量 `CHAT_STREAM_MODE` 控制（`.env`）：
+回答生成节点（`answer_generation`）内部直接调用模型流式接口（`model.stream`），
+增量文本经 `src/utils/stream_bus.py` token 总线实时转发给通道层（SSE / WebSocket），
+无需等整段回答生成完成；伪流式仅作为无流式能力时的回退。
 
-| 模式 | 行为 | 适用 |
-| ---- | ---- | ---- |
-| `updates`（默认） | 节点状态事件 + 回答切片伪流 | 任何依赖版本组合，稳定 |
-| `multi` | 尝试 messages 模式拿真实 token，失败自动降级重跑 | 等上游兼容修复后启用 |
+| 通道 | 流式实现 |
+| ---- | ---- |
+| Vue 3 前端（SSE） | `answer_generation` 流式 token 实时推送，伪流式回退 |
+| 微信小程序（WebSocket） | 同上，token 经 token 总线桥接进 WS 事件队列 |
+| POST `/api/chat` | 非流式，消费同一事件流取完整结果 |
 
-> ⚠️ 已知问题：langgraph 1.2.x + langchain-core 1.4.x 组合下 messages 流模式存在
-> 上游缺陷（`AIMessage.generation_info` 崩溃，升级至 1.6.0 亦复现）。
-> 默认模式不受影响；`multi` 模式开启后每次请求会先失败再降级（多消耗一次调用），
-> 建议暂不启用。前端协议不感知差异，未来切换无需改前端。
+> ⚠️ 历史遗留：`CHAT_STREAM_MODE=multi`（LangGraph messages 模式）在上游
+> langgraph 1.2.x + langchain-core 1.4.x 组合下存在 `AIMessage.generation_info`
+> 崩溃缺陷，已不再依赖该路径；`updates` 模式 + 节点内流式是当前默认实现。
+> 前端协议（`start/status/token/tts/done/error`）不感知差异。
 
 ---
 
