@@ -260,6 +260,7 @@ function getDayList(it) {
 module.exports = {
   looksLikeItinerary,
   extractItinerary,
+  extractLocation,
   stripJson,
   summarize,
   getSlots,
