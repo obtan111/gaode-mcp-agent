@@ -26,12 +26,16 @@ def emit_token(text: str) -> None:
     global _emitted
     if not text:
         return
-    _emitted += len(text)
+    # 只在有接收方（sink）时计数：无 sink 说明本通道未启用真流式
+    # （如 SSE 降级路径），保持 emitted_chars()==0，让 agent_runner
+    # 正确回退到伪流切片推送，避免"计数涨了但 token 没送出去"导致
+    # 网页端整段生成期间无任何增量。
     if _sink is not None:
         try:
             _sink(text)
+            _emitted += len(text)
         except Exception:
-            # 转发失败不影响节点主流程
+            # 转发失败不影响节点主流程（也不计数，交给伪流回退接管）
             pass
 
 

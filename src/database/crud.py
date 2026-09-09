@@ -53,6 +53,20 @@ def _load_all_documents_cached(kb_name: Optional[str] = None) -> List[Dict[str, 
     return all_docs
 
 
+def invalidate_documents_cache(kb_name: Optional[str] = None) -> None:
+    """知识库变更后主动失效文档全量缓存（上传/删除时由 kb 路由调用）。
+
+    只清指定的 kb（以及"全库"键，避免跨库检索命中旧数据）；
+    kb_name 为 None 时清空全部缓存。
+    """
+    with _docs_cache_lock:
+        if kb_name is None:
+            _docs_cache.clear()
+            return
+        _docs_cache.pop(kb_name or "", None)
+        _docs_cache.pop("", None)
+
+
 def _check_content_hash_column() -> bool:
     """
     检查 content_hash 列是否存在于 documents 表中。

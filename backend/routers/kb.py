@@ -16,6 +16,7 @@ from src.database.crud import (
     get_documents_by_kb,
     get_knowledge_base_names,
     insert_document,
+    invalidate_documents_cache,
 )
 from src.rag.document_parser import DocumentParserFactory
 from src.rag.retrieval_pipeline import RetrievalPipeline
@@ -115,6 +116,7 @@ def read_document(doc_id: str):
 @router.delete("/{kb_name}")
 def remove_kb(kb_name: str):
     _invalidate_list_cache(kb_name)
+    invalidate_documents_cache(kb_name)
     docs = get_documents_by_kb(kb_name, columns="filename")
     filenames = {doc.get("filename", "") for doc in docs} - {""}
     deleted_chunks = sum(delete_documents_by_filename(name) or 0 for name in filenames)
@@ -195,6 +197,8 @@ async def upload_documents(kb_name: str, files: List[UploadFile] = File(...)):
             fail_count += 1
             failures.append(f"{filename}: 所有分片入库失败")
 
+    if success_count > 0:
+        invalidate_documents_cache(kb_name)
     return {"total": len(files), "success": success_count, "failed": fail_count, "failures": failures[:20]}
 
 
