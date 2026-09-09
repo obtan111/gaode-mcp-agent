@@ -22,7 +22,7 @@
       latitude="{{center.latitude}}"
       longitude="{{center.longitude}}"
       markers="{{markers}}"
-      polylines="{{polylines}}"
+      polyline="{{polylines}}"
       include-points="{{includePoints}}"
       bindmarkertap="onMarkerTap"
       enable-zoom

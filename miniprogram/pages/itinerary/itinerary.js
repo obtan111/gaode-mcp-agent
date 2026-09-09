@@ -106,11 +106,15 @@ Page({
     const markers = []
     const polyByDay = {}
     const allPoints = []
+    const seqByKey = {}
     placeNames.forEach((name) => {
       const c = coordMap[name]
       const info = placeMap[name]
       if (!c) return
       const dayIdx = Math.min(info.day, DAY_COLORS.length) - 1
+      // 同一槽位（如全天）下的多个地点加序号，避免标签重复（Day1·全天1/2/3）
+      const lblKey = info.day + '|' + (info.slotLabel || '')
+      seqByKey[lblKey] = (seqByKey[lblKey] || 0) + 1
       const marker = {
         id: markers.length,
         latitude: c.lat,
@@ -119,7 +123,7 @@ Page({
         width: 30,
         height: 30,
         label: {
-          content: info.dayLabel + '·' + (info.slotLabel || ''),
+          content: info.dayLabel + '·' + (info.slotLabel || '') + seqByKey[lblKey],
           color: DAY_COLORS[dayIdx],
           fontSize: 10,
           anchorX: -22,
