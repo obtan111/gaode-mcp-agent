@@ -53,26 +53,41 @@ Page({
 
   // ---------- 地图可视化 ----------
 
+  // 地点文本拆分：'天安门→故宫→景山' -> ['天安门','故宫','景山']
+  _splitPlaces(text) {
+    return (text || '')
+      .split(/[→、，,；;\/|&]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && /[\u4e00-\u9fa5A-Za-z]/.test(s))
+  },
+
   async _loadMap(days, city) {
-    // 收集地点：slot.location 优先，activity 提取兜底；按天/时段记录
+    // 收集地点：activity 括号内的地点串优先（可拆多个），slot.location 兜底；按天/时段记录
     const placeMap = {}
     const placeNames = []
     days.forEach((d) => {
       const dayNo = d.day
       d.slots.forEach((s) => {
-        let loc = (s.location || '').trim()
-        if (!loc) loc = itineraryUtil.extractLocation(s.activity || '')
-        if (!loc) return
-        if (!placeMap[loc]) {
-          placeMap[loc] = {
-            name: loc,
-            day: dayNo,
-            dayLabel: 'Day' + dayNo,
-            slotLabel: s.label || '',
-            activity: s.activity || ''
-          }
-          placeNames.push(loc)
+        let locs = []
+        const bracket = itineraryUtil.extractLocation(s.activity || '')
+        if (bracket) {
+          locs = this._splitPlaces(bracket)
+        } else if (s.location) {
+          locs = [s.location.trim()]
         }
+        if (!locs.length) return
+        locs.forEach((loc) => {
+          if (!placeMap[loc]) {
+            placeMap[loc] = {
+              name: loc,
+              day: dayNo,
+              dayLabel: 'Day' + dayNo,
+              slotLabel: s.label || '',
+              activity: s.activity || ''
+            }
+            placeNames.push(loc)
+          }
+        })
       })
     })
     if (!placeNames.length) return
