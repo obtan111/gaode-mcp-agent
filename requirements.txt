@@ -3,6 +3,11 @@ langchain
 langchain-core
 langchain-text-splitters
 langgraph
+langchain-openai
+openai
+
+# LLM 服务商 SDK
+zhipuai
 
 # 数据库
 supabase

@@ -1,14 +1,31 @@
 // 后端服务地址配置
 //
-// 当前为「真机预览」模式：使用电脑局域网 IP（后端需以 --host 0.0.0.0 启动，
-// 手机与电脑连同一 WiFi，且 Windows 防火墙放行 8100 端口）。
+// ENV 三档：
+//   'dev'  -> 开发者工具模拟器：127.0.0.1（详情 -> 本地设置 -> 勾选「不校验合法域名」）
+//   'lan'  -> 真机预览：电脑局域网 IP（后端需 --host 0.0.0.0，手机同 WiFi，防火墙放行 8100）
+//   'prod' -> 线上体验版/正式版：备案域名 + HTTPS/WSS（见 README「公网部署」章节）
 //
-// 纯本地模拟器调试：把下面两个地址改回 127.0.0.1:8100，并在
-//   「详情 -> 本地设置 -> 不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书」
-// 勾选后即可使用 ws:// 与 http:// 访问本机后端。
+// 上线步骤：把 ENV 改为 'prod'，并将 api.example.com 替换为你的真实备案域名。
 
-const BASE_URL = 'http://192.168.1.232:8100'
-const WS_URL = 'ws://192.168.1.232:8100/api/chat/ws'
+const ENV = 'lan'
+
+const HOSTS = {
+  dev: {
+    base: 'http://127.0.0.1:8100',
+    ws: 'ws://127.0.0.1:8100/api/chat/ws'
+  },
+  lan: {
+    base: 'http://192.168.1.232:8100',
+    ws: 'ws://192.168.1.232:8100/api/chat/ws'
+  },
+  prod: {
+    base: 'https://api.example.com',
+    ws: 'wss://api.example.com/api/chat/ws'
+  }
+}
+
+const BASE_URL = HOSTS[ENV].base
+const WS_URL = HOSTS[ENV].ws
 
 module.exports = {
   BASE_URL,

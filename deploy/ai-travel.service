@@ -1,0 +1,26 @@
+# AI 旅行助手 - systemd 服务（替代 Windows 计划任务，开机自启 + 崩溃自动拉起）
+# 安装：sudo cp deploy/ai-travel.service /etc/systemd/system/ && sudo systemctl daemon-reload
+# 查看日志：journalctl -u ai-travel -f
+
+[Unit]
+Description=AI Travel Assistant Backend (FastAPI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 项目根目录（部署脚本固定为 /opt/ai-travel，如需变更请同步修改 deploy.sh）
+WorkingDirectory=/opt/ai-travel
+# 密钥全部从 .env 读取（不入库）
+EnvironmentFile=/opt/ai-travel/.env
+# 只监听回环地址，公网访问一律经 Caddy 反代（HTTPS/WSS）
+ExecStart=/opt/ai-travel/venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8100
+Restart=always
+RestartSec=3
+
+# 日志输出到 journal（journalctl -u ai-travel）
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

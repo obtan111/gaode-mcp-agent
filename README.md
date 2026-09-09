@@ -240,6 +240,28 @@ curl -X POST http://127.0.0.1:8100/api/kb/retrieve \
 
 > 开发版/预览版不校验合法域名（支持 `ws://`）；上传体验版需公网部署 + WSS + 域名白名单。
 
+### 公网部署（体验版 / 正式版）
+
+上传体验版需公网可访问的 **HTTPS/WSS** 与**已备案域名**（微信强制校验 ICP；个人主体可用
+身份证 + 人脸核验备案，周期约 1-3 周）。仓库 `deploy/` 已备好整套配置：
+
+| 文件 | 作用 |
+| ---- | ---- |
+| `deploy/deploy.sh` | Ubuntu 一键部署：Python 3.11 + 依赖 + systemd 服务 + Caddy |
+| `deploy/ai-travel.service` | systemd 托管后端（开机自启、崩溃拉起，替代 Windows 计划任务） |
+| `deploy/Caddyfile` | Caddy 反代：自动 HTTPS 证书 + WebSocket 升级透传（后端零改动） |
+
+流程：
+
+1. 购买**境内云服务器**（腾讯云/阿里云轻量 2C2G）与**域名**（`.com`/`.cn`，实名信息与小程序主体一致）；
+2. 控制台发起**个人 ICP 备案**（身份证 + 人脸核验，平台初审 1-3 天 + 管局 7-20 个工作日，先启动不等待）；
+3. 域名 A 记录解析到服务器公网 IP；项目 clone 到 `/opt/ai-travel`，`scp` 单独上传 `.env`（密钥不入库）；
+4. 执行 `sudo DOMAIN=api.yourdomain.com bash deploy/deploy.sh`；
+5. 小程序侧：`miniprogram/utils/config.js` 切 `ENV='prod'` 并填真实域名 → 开发者工具上传 → 版本管理设为体验版；
+6. 微信公众平台「服务器域名」配置 `https://`（request / uploadFile）与 `wss://`（socket）。
+
+> 体验版可临时开启「调试模式」不校验域名（仅限本人调试）；提审正式版必须备案域名，IP 无法过审。
+
 ---
 
 ## Docker 部署
